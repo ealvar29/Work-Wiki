@@ -60,9 +60,67 @@ The OptiUpgrade Assistant tool handles ~31 migration steps and creates full work
 
 **Limitation:** Automation gets you to "initial build-ready state." Post-migration QA, integration testing, and validation remain manual.
 
-## Part 2: QA Prompt
+## Part 2: QA Prompt (David Knipe)
 
-David Knipe's article mentions a follow-up Part 2 covering a **QA prompt** for systematically comparing the upgraded CMS 13 site against the CMS 12 reference before going to production. Worth following up on for a complete picture.
+After the upgrade is built, this prompt systematically compares the CMS 13 candidate against the CMS 12 baseline by crawling both sites and checking each page pair. It catches rendering errors, missing translations, and broken navigation that manual testing would likely miss.
+
+```
+You are a QA engineer testing an Optimizely CMS 13 site upgrade. Your job is to
+compare a reference site (the known-good baseline) against an upgraded site and
+report differences.
+
+STEP 1 — BUILD THE URL LIST
+- Crawl the reference site to 2 hops from the homepage
+- Collect only internal URLs with paths (skip fragments, mailto, tel, javascript)
+- Include only pages returning HTTP 200 anonymously
+- Skip URLs containing: /cart, /checkout, /wishlist, /my-account, /order-,
+  /login, /register, /password or query strings
+- Deduplicate and sort results
+- Derive upgrade equivalents by domain substitution
+
+STEP 2 — TEST EACH URL PAIR
+Run these checks on every reference/upgrade pair:
+
+| Check                  | Pass condition                                                        |
+|------------------------|-----------------------------------------------------------------------|
+| HTTP status            | Upgrade returns same code as reference                                |
+| Page renders           | Response body is not an error page, exception dump, or blank          |
+| Translation keys       | No raw key paths visible (pattern: /[A-Z][a-z]+/[A-Z][a-z]+/)        |
+| Key content present    | Major headings and section titles from reference appear on upgrade    |
+| No missing renderers   | No [BlockType] placeholder text or Razor exception fragments          |
+| Navigation present     | <nav> or header/footer elements exist                                 |
+
+Acceptable differences (do not flag):
+- Live data variations (prices, stock status, counts)
+- Timestamps and relative dates
+- Image URLs or CDN paths
+- Minor whitespace or HTML attribute ordering
+- Intentionally different content between environments
+
+STEP 3 — REPORT
+Group failures by category:
+- HTTP errors (4xx/5xx responses)
+- Translation keys (missing localization)
+- Missing content (sections absent on upgrade)
+- Rendering errors (exceptions, missing block output)
+- Wrong content (significantly different text)
+
+End with totals: "X PASS, Y FAIL out of Z URLs tested"
+```
+
+### Why Two Hops
+
+Two hops from the homepage balances coverage against token usage and run time. It hits the most important pages without crawling the entire site.
+
+### What It Catches in Practice
+
+A real example caught raw translation key paths like `/Login/Form/Label/Email` and `/Shared/Address/Form/Label/FirstName` in login overlays — missing XML translation resource entries that would have been invisible in manual testing.
+
+### Limitations
+
+- **Anonymous crawl only** — authenticated/personalised content is not tested
+- **Not a visual regression tool** — can't detect layout breakage when HTML is technically correct
+- **Client-side rendered content** may not reflect what a browser actually renders
 
 ## Related
 
@@ -72,5 +130,6 @@ David Knipe's article mentions a follow-up Part 2 covering a **QA prompt** for s
 
 ## Sources
 
-- [David Knipe — CMS 13 Upgrades Are Faster With AI](https://www.david-tec.com/2026/04/optimizely-cms-13-upgrades-are-faster-with-ai---heres-the-claude-code-prompt-that-gets-you-started/) *(Apr 2026)*
+- [David Knipe — CMS 13 Upgrades Are Faster With AI (Part 1)](https://www.david-tec.com/2026/04/optimizely-cms-13-upgrades-are-faster-with-ai---heres-the-claude-code-prompt-that-gets-you-started/) *(Apr 2026)*
+- [David Knipe — The Claude Code Prompt I Use to QA a CMS 13 Upgrade (Part 2)](https://www.david-tec.com/2026/04/the-claude-code-prompt-i-use-to-qa-an-optimizely-cms-13-upgrade/) *(Apr 2026)*
 - [Vaibhav (Royal Cyber) — Accelerating CMS Upgrades with Intelligent Automation](https://world.optimizely.com/blogs/vaibhav/dates/2026/4/accelerating-optimizely-cms-upgrades-with-intelligent-automation/) *(Apr 2026)*
