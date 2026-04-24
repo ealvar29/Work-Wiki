@@ -1,0 +1,151 @@
+@use "./base.scss";
+
+// ── Typography ──────────────────────────────────────────────────────────────
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: 0.01em;
+}
+
+h1 {
+  font-size: 2.2rem;
+  border-bottom: 1px solid var(--tertiary);
+  padding-bottom: 0.4em;
+  margin-bottom: 1.2em;
+}
+
+h2 {
+  font-size: 1.5rem;
+  color: var(--secondary);
+  margin-top: 2em;
+}
+
+// ── Links ───────────────────────────────────────────────────────────────────
+
+a {
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    border-bottom-color: var(--secondary);
+  }
+}
+
+// ── Page layout ─────────────────────────────────────────────────────────────
+
+// Left sidebar gets a subtle gold border
+#quartz-body > .sidebar.left {
+  border-right: 1px solid var(--lightgray);
+}
+
+// Article content max-width and breathing room
+article {
+  max-width: 740px;
+
+  p {
+    line-height: 1.8;
+  }
+}
+
+// ── Tables ──────────────────────────────────────────────────────────────────
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-size: 0.92rem;
+
+  th {
+    background-color: var(--lightgray);
+    color: var(--secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    padding: 0.6em 1em;
+    border-bottom: 2px solid var(--secondary);
+  }
+
+  td {
+    padding: 0.6em 1em;
+    border-bottom: 1px solid var(--lightgray);
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+// ── Blockquotes ─────────────────────────────────────────────────────────────
+
+blockquote {
+  border-left: 3px solid var(--secondary);
+  background-color: var(--highlight);
+  margin: 1.5em 0;
+  padding: 0.8em 1.2em;
+  border-radius: 0 4px 4px 0;
+  font-style: italic;
+  color: var(--darkgray);
+}
+
+// ── Code ────────────────────────────────────────────────────────────────────
+
+code {
+  font-size: 0.88em;
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  background-color: var(--lightgray);
+}
+
+pre {
+  border: 1px solid var(--lightgray);
+  border-radius: 6px;
+  padding: 1.2em 1.4em;
+}
+
+// ── Page title ──────────────────────────────────────────────────────────────
+
+.page-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--secondary) !important;
+}
+
+// ── Search ──────────────────────────────────────────────────────────────────
+
+#search-bar {
+  border-radius: 6px;
+  border: 1px solid var(--lightgray);
+  transition: border-color 0.2s ease;
+
+  &:focus-within {
+    border-color: var(--secondary);
+  }
+}
+
+// ── Tags ────────────────────────────────────────────────────────────────────
+
+.tag-link {
+  border: 1px solid var(--secondary);
+  color: var(--secondary);
+  border-radius: 3px;
+  padding: 0.1em 0.5em;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: var(--highlight);
+    border-bottom-color: var(--secondary);
+  }
+}
+
+// ── Graph ───────────────────────────────────────────────────────────────────
+
+.graph {
+  border: 1px solid var(--lightgray);
+  border-radius: 8px;
+}

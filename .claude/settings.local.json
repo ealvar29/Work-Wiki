@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed 's/.*\\\\.//')",
+      "Bash(grep -E \"\\\\.\\(md|png|json\\)$\")",
+      "Read(//c/Users/Master/source/GitKraken/**)",
+      "Bash(cp \"LLM Wiki/globals.d.ts\" \"LLM Wiki Work/globals.d.ts\")",
+      "Bash(cp \"LLM Wiki/index.d.ts\" \"LLM Wiki Work/index.d.ts\")",
+      "Bash(cp \"LLM Wiki/tsconfig.json\" \"LLM Wiki Work/tsconfig.json\")",
+      "Bash(cp \"LLM Wiki/package.json\" \"LLM Wiki Work/package.json\")",
+      "Bash(npm install *)",
+      "Bash(npx quartz *)",
+      "Bash(rsync -av --exclude=node_modules --exclude=public --exclude=.git 'LLM Wiki Work/' Work-Wiki/)",
+      "PowerShell(robocopy $src $dst /E /XD \"node_modules\" \"public\" \".git\" /NFL /NDL /NJH /NJS)",
+      "PowerShell($src = \"C:\\\\Users\\\\Master\\\\source\\\\GitKraken\\\\LLM Wiki Work\")",
+      "PowerShell($dst = \"C:\\\\Users\\\\Master\\\\source\\\\GitKraken\\\\Work-Wiki\")"
+    ]
+  }
+}
