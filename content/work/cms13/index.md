@@ -31,6 +31,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[upgrading-from-cms12|Upgrading from CMS 12]]
 - [[upgrade-checklist|Upgrade Checklist]] — consolidated step-by-step
 - [[breaking-changes|Breaking Changes]] — full catalog
+- [[cms12-to-cms13-case-study|CMS 12 → 13 Case Study]] — real-world walkthrough, Find→Graph patterns, NuGet pitfalls
 - [[ai-assisted-upgrade|AI-Assisted Upgrades]] — using Claude Code to speed up migration
 
 ## APIs & Development
