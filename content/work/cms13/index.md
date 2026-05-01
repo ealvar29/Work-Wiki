@@ -19,6 +19,10 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - **Opti ID** for SSO, MFA, and DAM integration
 - **REST API v1** — production-stable, backward-compatible management API
 
+## Start Here
+
+- [[upgrade-accelerator|CMS 13 Upgrade Accelerator]] — phase-by-phase workflow, client readiness checklist, Claude branch setup, go/no-go criteria
+
 ## Platform Fundamentals
 
 - [[what-is-cms13|What is CMS 13?]]
