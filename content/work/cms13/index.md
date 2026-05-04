@@ -58,6 +58,10 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[debugging-dxp|Debugging in DXP]]
 - [[ai-assistant|AI Assistant v4]]
 
+## Quick Reference
+
+- [[cms12-to-cms13-cheatsheet|CMS 12 → 13 Code Cheatsheet]] — before/after patterns, package renames, namespace changes
+
 ## Reference
 
 - [[cms13-resources|Resources & Links]]
