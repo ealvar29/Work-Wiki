@@ -38,10 +38,10 @@ Fill this out before anything else. It determines which phases apply and what th
 
 | Client | Repo branch | Upgrade file |
 |---|---|---|
-| VHB | `upgrade/cms13` | `CMS13_UPGRADE.md` |
+| VHB | `VHB-CMS13-Upgrade` | `CMS13_UPGRADE.md` |
 | Oxy | `CMS-13-UpgradePath` | `UPGRADE-CMS13.md` |
 | Christie Digital | `Christie-CMS13-Upgrade` | `CMS13-Upgrade-Guide.md` |
-| Cambro | `upgrade/cms13` | `CMS13_UPGRADE.md` |
+| Cambro | `CAMI-CMS13-Upgrade` | `CMS13_UPGRADE.md` |
 
 ---
 
