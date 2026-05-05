@@ -57,6 +57,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[translations|Translations & Localization]]
 - [[debugging-dxp|Debugging in DXP]]
 - [[ai-assistant|AI Assistant v4]]
+- [[xhtmlstring-pipeline-sdk-version|XhtmlString Fields as Plain Text]] — pipeline .NET SDK mismatch breaks TinyMCE in deployed environments
 
 ## Quick Reference
 
