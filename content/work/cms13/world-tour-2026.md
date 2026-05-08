@@ -74,15 +74,17 @@ Before starting an upgrade, evaluate:
 - Are there customizations or third-party packages? (Check CMS 13 compatibility)
 - **GDPR/Compliance:** Opti-ID, Opal, and Graph introduce new data sub-processors. Get DPO approval before upgrading.
 - Which Graph client approach will you use? (CMS managed vs. self-managed token)
+- **Involve Optimizely early** — the customer account must be configured for Opti-ID, OCP, Opal, and DAM provisioning. Connect with your Customer Success Manager as early as possible. Currently, self-service only covers upgrading from CMS 11 → 12 and moving from S&N → Graph; everything else requires Optimizely involvement.
+- **Plan for organizational change** — login, role management, and asset picking/management all change for editors and admins. A successful migration includes a change management plan, not just a code migration plan.
 
 ### DXP Infrastructure Options
 
 Two paths when upgrading on DXP:
 
-| Option | How |
-|---|---|
-| **New application** | Request from Customer Success Manager; fresh environment |
-| **Upgrade in place** | Use deployment slots; self-service; production goes read-only during slot swap |
+| Option | How | Note |
+|---|---|---|
+| **New application** | Request from Customer Success Manager; fresh environment | Duplicated infrastructure is only available for a limited time |
+| **Upgrade in place** | Use deployment slots; self-service; production goes read-only during slot swap | Currently self-service |
 
 ---
 
@@ -386,9 +388,30 @@ All static service accessors are gone. Use DI.
 
 `IApplicationResolver.GetApplicationByHostAsync()` resolves the **application** — it does not give you the start page. Retrieve the start page separately via `IContentLoader` using the application's start page reference.
 
+**Solution:** Use type checking to test if the application is an instance of `IRoutableApplication` (required for in-process rendering):
+
+```csharp
+var app = await _applicationResolver.GetApplicationByHostAsync(host);
+if (app is IRoutableApplication routable)
+{
+    var startPage = await _contentLoader.GetAsync<PageData>(routable.StartPageReference);
+}
+```
+
 ### `ExperienceData` Inherits `PageData`
 
 You cannot create an abstract base class that is a parent of both `PageData`-based pages and `ExperienceData`-based experiences. They share the `PageData` ancestor, so any attempt to add a common abstract parent causes an inheritance conflict.
+
+**Solution:** Use an interface that inherits from `IContent` and is annotated as a `[ContentType]` — this makes it a Contract in CMS 13. Add other base interfaces (`IRoutable`, `ISecurable`, etc.) as needed. Both pages and experiences can implement this interface.
+
+```csharp
+[ContentType(GUID = "...")]
+public interface ISitePage : IContent, IRoutable, ISecurable
+{
+    string MetaTitle { get; set; }
+    string MetaDescription { get; set; }
+}
+```
 
 ### Conventions API Removed
 
@@ -420,19 +443,37 @@ services.Configure<ProjectUIOptions>(o => {
 
 ## Deployment Models
 
-CMS 13 supports three deployment models with significant feature differences:
+CMS 13 supports three deployment models with significant feature differences.
+
+### Platform Features
 
 | Feature | On Premise | PaaS | SaaS |
 |---|---|---|---|
-| Full customization | Yes | Yes | No |
 | .NET MVC InProc | Yes | Yes | **No** |
-| Visual Builder | Yes | Yes | Yes |
+| Visual Builder | Mostly ¹ | Yes | Yes |
 | Graph | Yes | Yes | Yes |
 | Opal | Yes | Yes | Yes |
 | OCP | Yes | Yes | Yes |
+| UI Extensions (OCP) | Roadmap | Roadmap | Roadmap |
 | Self-managed infra | Yes | No | No |
 
-**SaaS limitations:** No custom .NET code running in-process. UI extensions and integrations go through OCP instead. Not appropriate for projects with heavy custom middleware or MVC filter pipelines.
+¹ Visual Builder on On Premise works but some features require Graph (e.g. Content Variations delivery); validate your specific use case.
+
+### Content Management Capabilities
+
+| Capability | On Premise | PaaS | SaaS |
+|---|---|---|---|
+| Frontend ACL | Yes ² | Yes ² | No |
+| Personalization | Yes ² | Yes ² | No |
+| Projects (content staging) | Yes ² | Yes ² | No |
+| Multi-Site | Yes | Yes | Mostly ³ |
+| Multi-Language | Yes | Yes | Mostly ³ |
+
+² Requires MVC InProc — not available in decoupled/headless setups even on On Premise or PaaS.
+
+³ Multi-Site and Multi-Language are largely supported on SaaS but have edge cases — validate your specific configuration with Optimizely before committing.
+
+**SaaS key constraint:** No custom .NET code running in-process. UI extensions and integrations go through OCP. Not appropriate for projects with heavy custom middleware, MVC filter pipelines, or frontend ACL/personalization requirements.
 
 ---
 

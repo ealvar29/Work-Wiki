@@ -15,6 +15,37 @@ The good news: this upgrade is significantly easier than the CMS 11 → 12 jump.
 
 CMS 11 → 12 was a platform rewrite. CMS 12 → 13 is a modernization pass — cleaner APIs, removed legacy baggage, and a retargeted runtime. If your CMS 12 project was kept reasonably up to date, you're not starting from scratch.
 
+## Before You Start
+
+These are the planning questions that should be answered before writing a single line of upgrade code. Getting these wrong mid-upgrade is expensive.
+
+**Technical planning:**
+- Are there active Search & Navigation queries? All must migrate to Graph — no S&N support in CMS 13
+- Is DAM in use? The old DAM asset picker is retired; plan migration to Embedded DAM (requires Opti-ID)
+- Does the project use `Principal.Current`, `ServiceLocator`, or other static service accessors? Must switch to DI
+- Does the content model share a base class between pages and experiences? `ExperienceData` inherits `PageData` — this breaks shared abstract base classes
+- Which Graph client approach? CMS managed token vs. self-managed token — different setup and operational profiles
+- Third-party packages? Check each package's CMS 13 compatibility before starting
+
+**Compliance:**
+- Opti-ID, Opal, and Optimizely Graph introduce new data sub-processors (Optimizely as a cloud service, not just on-premise software). Get DPO or legal review done before the upgrade project starts, not after.
+
+**Organizational:**
+- **Involve Optimizely early** — customer accounts must be provisioned for Opti-ID, OCP, Opal, and DAM by Optimizely. Only S&N→Graph and CMS 11→12 upgrades are currently self-service. Connect with your Customer Success Manager at project kickoff.
+- **Plan for organizational change** — login, role management, and DAM asset workflows all change for editors and admins. Don't treat this as a pure dev project; include a change management plan.
+
+## Official Upgrade Path (Optimizely's 5-Step Process)
+
+Optimizely recommends executing these steps in order. They can be done in one project or split across multiple releases:
+
+1. **Migrate to Opti-ID** — required foundation; unlocks everything else
+2. **Migrate to Optimizely Graph** — replace Search & Navigation entirely
+3. **Prepare for .NET 10** — retarget, fix dependencies, address breaking changes
+4. **Upgrade the project** — swap CMS packages to 13.x, resolve remaining errors
+5. **Enable new features** — Visual Builder, Opal, DAM, OCP as desired
+
+See [[world-tour-2026|CMS 13 World Tour 2026 Notes]] for the full 4 Jobs-to-Be-Done breakdown.
+
 ## Recommended Upgrade Strategy
 
 ### 1. Pre-flight: Retarget to .NET 10 while still on CMS 12
