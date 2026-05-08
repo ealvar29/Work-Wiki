@@ -58,6 +58,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[translations|Translations & Localization]]
 - [[debugging-dxp|Debugging in DXP]]
 - [[ai-assistant|AI Assistant v4]]
+- [[geo-analytics|GEO Analytics]] — AI crawler traffic dashboard; track which AI agents index your site and whether crawls become referrals (PaaS only)
 
 ## Quick Reference
 
