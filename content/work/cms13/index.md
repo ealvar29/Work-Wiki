@@ -21,6 +21,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 
 ## Start Here
 
+- [[world-tour-2026-briefing|CMS 13 World Tour 2026 — Team Briefing]] — distilled takeaways from the May 2026 accreditation event: upgrade path, new features, gotchas, deployment models
 - [[upgrade-accelerator|CMS 13 Upgrade Accelerator]] — phase-by-phase workflow, client readiness checklist, Claude branch setup, go/no-go criteria
 - [[world-tour-2026|CMS 13 World Tour 2026 Notes]] — full technical accreditation notes: Visual Builder, Opal, Graph, OCP, DAM, upgrade path, breaking changes
 
