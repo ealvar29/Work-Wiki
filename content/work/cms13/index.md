@@ -22,6 +22,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 ## Start Here
 
 - [[upgrade-accelerator|CMS 13 Upgrade Accelerator]] — phase-by-phase workflow, client readiness checklist, Claude branch setup, go/no-go criteria
+- [[world-tour-2026|CMS 13 World Tour 2026 Notes]] — full technical accreditation notes: Visual Builder, Opal, Graph, OCP, DAM, upgrade path, breaking changes
 
 ## Platform Fundamentals
 
@@ -40,7 +41,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[extension-migration|Migrating a CMS Extension]] — upgrading reusable packages and add-ons to CMS 13
 - [[multisite-plugin-cms13|Multi-Site Plugin v2]] — display name → normalized app identity breaking change
 - [[cms12-to-cms13-case-study|CMS 12 → 13 Case Study]] — real-world walkthrough, Find→Graph patterns, NuGet pitfalls
-- [[ai-assisted-upgrade|AI-Assisted Upgrades]] — using Claude Code to speed up migration
+- [[ai-assisted-upgrade|AI-Assisted Upgrades]] — using Claude Code to speed up migration; see also [[upgrade-assistant-mcp|Upgrade Assistant MCP]] in Jaxon Tools
 - [[cms13-technical-qa|CMS 13 Technical Q&A]] — upgrade paths, Graph, DAM, Opal, Commerce 15, frontend options
 
 ## APIs & Development
