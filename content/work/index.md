@@ -12,5 +12,6 @@ Topics related to my professional development in software engineering.
 - [[cms13/index|Optimizely CMS 13]] — full knowledge base: breaking changes, Graph, Visual Builder, upgrade guides
 - [[clients/index|Clients]] — active client projects, tech stacks, and feature workstreams
 - [[gotchas/index|CMS Gotchas]] — unexpected platform/infra changes that break CMS sites
+- [[tools/index|Jaxon Tools]] — internal tools built by the team
 - C# & .NET *(coming soon)*
 - Frontend Development *(coming soon)*

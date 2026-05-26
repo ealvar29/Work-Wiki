@@ -49,9 +49,16 @@ The new component uses fixed positioning — add `padding-top: 56px` to your con
 
 | Removed | Replacement |
 |---|---|
-| `SiteDefinition.Current` | `IApplicationResolver.GetByContextAsync()` |
+| `SiteDefinition.Current` | `ISiteDefinitionResolver.GetByHostname()` |
 | `ISiteDefinitionRepository` | `IApplicationRepository` |
 | GUID-based `Id` | Immutable `Name` string |
+
+> **Verified against CMS 13.0.2 (OxyChem upgrade, May 2026):** `IApplicationResolver` does not exist in this version. Inject `IHttpContextAccessor` + `ISiteDefinitionResolver` and call:
+> ```csharp
+> var host = _httpContextAccessor.HttpContext?.Request.Host.Host;
+> var site = _siteDefinitionResolver.GetByHostname(host, fallbackToWildcard: true, out _);
+> ```
+> If official docs reference `IApplicationResolver.GetByContextAsync()`, verify it exists in your specific CMS 13 version before using it.
 
 See [[applications-model|Applications Model]] for full details.
 

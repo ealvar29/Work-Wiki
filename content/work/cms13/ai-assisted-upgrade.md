@@ -12,6 +12,10 @@ tags:
 
 CMS 13 has a lot of breaking changes. AI coding tools — especially Claude Code — can significantly reduce the manual effort. David Knipe documented a practical approach using a structured Claude Code prompt to drive the migration.
 
+## Before Running This Prompt
+
+Run the [[upgrade-assistant-mcp|Optimizely Upgrade Assistant MCP]] first. Its `assess_optimizely_upgrade` and `build_optimizely_upgrade_plan` tools produce an `upgrade-plan.md` and structured task list that you can hand to Claude Code directly — replacing the "Analyse my existing codebase" step below with a faster, more thorough static-analysis pass.
+
 ## The Upgrade Prompt (David Knipe)
 
 This prompt asks Claude Code to research the upgrade requirements, analyse your specific codebase, and then execute the migration with your approval:

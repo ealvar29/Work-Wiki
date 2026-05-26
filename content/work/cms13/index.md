@@ -38,11 +38,12 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[upgrade-checklist|Upgrade Checklist]] — consolidated step-by-step
 - [[breaking-changes|Breaking Changes]] — full catalog
 - [[ivalidate-breaking-change|Breaking Change: IValidate\<T\>]] — validators no longer auto-discovered, must register via `AddCmsValidator<T>()`
-- [[post-upgrade-gotchas|Post-Upgrade Gotchas]] — `MapContent()` ordering bug (CMS-51344), image deletion failures
+- [[post-upgrade-gotchas|Post-Upgrade Gotchas]] — 13 real gotchas from the field: namespace cascades, Find extensions, Geta scanner crash, cookie policy, AutoMapper null ref, ContentGraph SDK blocker, and more
 - [[extension-migration|Migrating a CMS Extension]] — upgrading reusable packages and add-ons to CMS 13
 - [[multisite-plugin-cms13|Multi-Site Plugin v2]] — display name → normalized app identity breaking change
 - [[cms12-to-cms13-case-study|CMS 12 → 13 Case Study]] — real-world walkthrough, Find→Graph patterns, NuGet pitfalls
 - [[ai-assisted-upgrade|AI-Assisted Upgrades]] — using Claude Code to speed up migration; see also [[upgrade-assistant-mcp|Upgrade Assistant MCP]] in Jaxon Tools
+- [[agent-quickstart|AI Agent Quickstart]] — one-stop brief for AI agents starting a CMS 12 → 13 upgrade: phases, ordered steps, gotcha list, vendor-blocked items, verification checklist
 - [[cms13-technical-qa|CMS 13 Technical Q&A]] — upgrade paths, Graph, DAM, Opal, Commerce 15, frontend options
 
 ## APIs & Development
