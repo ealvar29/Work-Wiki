@@ -19,8 +19,8 @@ tags:
 You are upgrading an Optimizely CMS 12 site to CMS 13. The platform changes are significant:
 
 - **.NET 6 → .NET 10** (target framework change in `.csproj`)
-- **EPiServer.Find removed entirely** — no CMS 13 version exists. Replacement is Optimizely Content Graph SDK, which may also not be CMS 13-compatible yet (check version).
-- **EPiServer.Forms — no CMS 13 release yet** as of May 2026. Exclude all Forms files from compilation.
+- **EPiServer.Find removed entirely** — no CMS 13 version exists. Replacement is the Optimizely Graph SDK, which **does** have a CMS 13 build — but under **renamed packages**: `Optimizely.Graph.Cms` + `Optimizely.Graph.Cms.Query` (the old `Optimizely.ContentGraph.Cms` is CMS 12 only). See G10.
+- **EPiServer.Forms — CMS 13 build shipped** (6.0.0). Earlier guidance to exclude all Forms files is **obsolete**; install `EPiServer.Forms` 6.0.0 and call `services.AddForms()`. *(Verified live on OxyChem, June 2026.)*
 - **Editor URL changed**: `/episerver/cms/` → `/Optimizely/CMS/` (hard 404, no redirect)
 - **Several EPiServer APIs removed** — not deprecated, removed. Compile errors are your roadmap.
 
@@ -48,13 +48,12 @@ In the client codebase, read these files immediately to understand scope:
 
 1. Change `<TargetFramework>net6.0</TargetFramework>` → `net10.0`
 2. Bump all `EPiServer.Cms.*` and `EPiServer.CloudPlatform.*` packages to `13.x`
-3. Remove `EPiServer.Find`, `EPiServer.Forms`, `EPiServer.Forms.Core`, `EPiServer.Forms.Samples`, `EPiServer.ImageLibrary.ImageSharp` from `.csproj` (ImageSharp is bundled in CMS 13)
-4. Add `Optimizely.ContentGraph.Cms` if replacing Find (check compatibility — see Vendor-Blocked section)
+3. Remove `EPiServer.Find` and `EPiServer.ImageLibrary.ImageSharp` from `.csproj` (ImageSharp is bundled in CMS 13). Bump `EPiServer.Forms` to **6.0.0** — do **not** remove it; it has a CMS 13 build.
+4. Add the renamed Graph packages `Optimizely.Graph.Cms` 13.0.2 + `Optimizely.Graph.Cms.Query` 13.0.2 to replace Find (NOT the CMS-12-only `Optimizely.ContentGraph.Cms` — see G10)
 5. Fix `IContextModeResolver` namespace **first** — it cascades: `EPiServer.Web.Routing` → `EPiServer.Web`
-6. Exclude all Find-dependent files with `<Compile Remove>` in `.csproj`
-7. Exclude all Forms-dependent files with `<Compile Remove>` in `.csproj`
-8. Fix remaining API breaking changes (see Critical Gotchas below)
-9. Run `dotnet build` — target: **0 errors**
+6. Exclude all Find-dependent files with `<Compile Remove>` in `.csproj` (Forms files stay — Forms compiles on CMS 13)
+7. Fix remaining API breaking changes (see Critical Gotchas below)
+8. Run `dotnet build` — target: **0 errors**
 
 **Useful build command:**
 ```powershell
@@ -73,10 +72,10 @@ dotnet build --no-incremental 2>&1 | Select-String "error"
 
 ### Phase 3 — Post-Compile (separate PRs)
 
-17. Wire up Content Graph SDK search when a CMS 13-compatible version ships
-18. Upgrade AutoMapper if on 13.x — has a known CVE (GHSA-rvv3-g6hj-g44x); bump to 16.x
-19. Re-enable Forms files when EPiServer.Forms ships for CMS 13
-20. Re-enable Geta/vendor packages as CMS 13 versions are released
+17. Wire up Graph search now (the CMS 13 SDK has shipped): register `AddContentGraph()` + `AddGraphContentClient()`, implement `ContentGraphSearchService` behind `ISearchService`, then run the "Content Graph Full Re-index" job per environment
+18. Upgrade AutoMapper if on 13.x — has a known CVE (GHSA-rvv3-g6hj-g44x); bump to 16.x (16.x also removes the single-arg `MapperConfiguration` ctor — use `AddAutoMapper()`)
+19. Re-enable Forms files and call `services.AddForms()` — `EPiServer.Forms` 6.0.0 is CMS 13-ready
+20. Re-enable `Advanced.CMS.AdvancedReviews` (2.0.0 ships for CMS 13) and any other vendor packages as CMS 13 versions are released
 21. Auth / Opti ID / SAML2 migration — **separate engagement, handle last**
 
 ---
@@ -152,6 +151,7 @@ private void ExcludeAssemblyFromEpiServerScan(string assemblyName)
 ExcludeAssemblyFromEpiServerScan("Geta.NotFoundHandler.Optimizely");
 ExcludeAssemblyFromEpiServerScan("Geta.Optimizely.ContentTypeIcons");
 ```
+**Follow-on:** excluding the assembly is *not enough* if the old package already wrote scheduled jobs to the DB — the Admin → Scheduled Jobs page then throws `CustomAttributeFormatException: 'SortIndex'` from `ScheduledJobsController`. Add an `IInitializableModule` that deletes the orphaned jobs (filter `ScheduledJob.AssemblyName`, use `repo.Delete(job.ID)`). Full code in [[post-upgrade-gotchas|Post-Upgrade Gotchas]].
 
 ---
 
@@ -179,26 +179,40 @@ ExcludeAssemblyFromEpiServerScan("Geta.Optimizely.ContentTypeIcons");
 
 ---
 
-### G10 — `Optimizely.ContentGraph.Cms` 4.4.0 is NOT CMS 13 compatible *(may hit in Phase 1/3)*
+### G10 — Use the RENAMED Graph packages + two DI registrations *(hits in Phase 1/3)*
 
-**Symptom:** Adding the Graph SDK causes `InvalidOperationException` at startup from the EPiServer assembly scanner hitting `ISynchronizedObjectInstanceCache` (removed in CMS 13).  
-**Cause:** ContentGraph 4.4.0 transitively pulls `EPiServer.ContentDeliveryApi.Core 3.12.5` — a CMS 12 package.  
-**Interim strategy:** Create an `ISearchService` abstraction + `NullSearchService` stub. Wire all search controllers to the interface. Swap for a real `ContentGraphSearchService` when a CMS 13-compatible SDK ships.
+**Symptom (wrong package):** Adding `Optimizely.ContentGraph.Cms` causes `InvalidOperationException` at startup from the EPiServer assembly scanner hitting `ISynchronizedObjectInstanceCache` (removed in CMS 13).  
+**Cause:** `Optimizely.ContentGraph.Cms` is the **CMS 12** package; 4.4.0 transitively pulls `EPiServer.ContentDeliveryApi.Core 3.12.5`.  
+**Fix:** Use the CMS 13 packages, which were renamed: `Optimizely.Graph.Cms` 13.0.2 **+** `Optimizely.Graph.Cms.Query` 13.0.2.
+
+**Symptom (second registration missing):** search requests 500 with `Unable to resolve service for type 'Optimizely.Graph.Cms.Query.IGraphContentClient'`.  
+**Cause:** `AddContentGraph()` only wires indexing/sync. The query client is registered separately.  
+**Fix:** call **both**, noting the surprising namespace on the second:
+```csharp
+services.AddContentGraph();        // indexing/sync
+services.AddGraphContentClient();  // IGraphContentClient — namespace Optimizely.Cms.DependencyInjection
+```
+Keep an `ISearchService` abstraction and back it with a real `ContentGraphSearchService`. Query via `GetAsContentAsync()` (not `GetAsync()`); the result is `IEnumerable<T>` (no `.Items`). Then run the **"Content Graph Full Re-index"** job per environment — the index starts empty. See [[graph-sdk|Graph SDK]].
 
 ---
 
-## Vendor-Blocked — Do Not Attempt (as of May 2026)
+## Vendor Status (updated June 2026 — verified against OxyChem CMS 13.0.2)
 
-These have no CMS 13-compatible release. Exclude them from compilation and note them for re-enablement:
+**Now CMS 13-ready — install, don't exclude:**
+
+| Package / Feature | CMS 13 status | Wiring |
+|---|---|---|
+| `EPiServer.Forms` 6.0.0 | ✅ Shipped | `services.AddForms()` — re-enable all Forms files |
+| Optimizely Graph (real search) | ✅ Shipped (renamed) | `Optimizely.Graph.Cms` + `Optimizely.Graph.Cms.Query` 13.0.2; `AddContentGraph()` + `AddGraphContentClient()` — see G10 |
+| `Advanced.CMS.AdvancedReviews` 2.0.0 | ✅ Shipped | `services.AddAdvancedReviews()` |
+
+**Still blocked — no CMS 13-compatible release:**
 
 | Package / Feature | Status | Re-enable trigger |
 |---|---|---|
-| `EPiServer.Forms` + all Forms files | No CMS 13 release | When Forms ships for CMS 13 |
-| `Optimizely.ContentGraph.Cms` (real search) | 4.4.0 incompatible | When SDK ships CMS 13 build |
-| `Geta.Optimizely.Sitemaps` | NU1608 warning | When Geta ships CMS 13 version |
-| `Geta.Optimizely.ContentTypeIcons` | NU1608 warning | When Geta ships CMS 13 version |
-| `Advanced.CMS.AdvancedReviews` | No CMS 13 release | When vendor ships |
-| `Addon.Episerver.EnvironmentSynchronizer` | No CMS 13 release | When vendor ships |
+| `Geta.Optimizely.Sitemaps` | 3.2.1 references removed `ISynchronizedObjectInstanceCache` | When Geta ships CMS 13 version |
+| `Geta.Optimizely.ContentTypeIcons` | 3.1.0 — package can stay referenced for the icon *attributes* on models, but `AddContentTypeIcons()` service reg fails (uses removed `EPiServer.Cms.Shell` extension) and the assembly must be scan-excluded | When Geta ships CMS 13 version |
+| `Addon.Episerver.EnvironmentSynchronizer` | 1.3.x uses `[ScheduledPlugIn(SortIndex=)]` removed in CMS 13 | When vendor ships a true CMS 13 build |
 | Auth / SAML2 / Opti ID | Separate engagement | After DXP provisioning |
 
 ---

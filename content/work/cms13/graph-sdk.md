@@ -12,11 +12,45 @@ tags:
 
 The Graph C# SDK (`Optimizely.Graph.Cms.Query`) is the replacement for Search & Navigation's fluent query API. It's async-first, strongly-typed, and significantly more capable.
 
-## Setup
+> **Field-verified (OxyChem CMS 13.0.2 upgrade, June 2026).** The CMS 13 Graph packages and the exact wiring below were confirmed live in production code. This supersedes earlier guidance that the Graph SDK had no CMS 13 build — that was true only of the *old* package name (see below).
+
+## Package Names — the CMS 13 packages were renamed
+
+This is the single most common trap. The CMS 12 Graph package and the CMS 13 Graph package have **different names**:
+
+| Era | Package | Notes |
+|---|---|---|
+| CMS 12 | `Optimizely.ContentGraph.Cms` | Latest 4.4.0 transitively pulls `EPiServer.ContentDeliveryApi.Core 3.12.5` (a CMS 12 package referencing the removed `ISynchronizedObjectInstanceCache`) → crashes CMS 13 startup. **Do not use on CMS 13.** |
+| CMS 13 | `Optimizely.Graph.Cms` **+** `Optimizely.Graph.Cms.Query` | The real CMS 13 build. Both at 13.0.2. |
+
+If a blog or doc tells you "the Graph SDK isn't CMS 13-ready," it's referring to the old `Optimizely.ContentGraph.Cms` name. The renamed packages are ready.
+
+## Setup — two DI registrations are required
 
 ```csharp
-services.AddGraphContentClient();
+services.AddContentGraph();        // indexing / sync side (Optimizely.Graph.DependencyInjection)
+services.AddGraphContentClient();  // query client IGraphContentClient
 ```
+
+> **Gotcha (cost us a 500 to find):** `AddContentGraph()` only wires the indexing/sync side. The query client `IGraphContentClient` is registered **separately** by `AddGraphContentClient()`, which is declared in namespace **`Optimizely.Cms.DependencyInjection`** — *not* the `Optimizely.Graph.Cms.Query.DependencyInjection` you'd expect. Miss it and every search request 500s with:
+> ```
+> Unable to resolve service for type 'Optimizely.Graph.Cms.Query.IGraphContentClient'
+> while attempting to activate ContentGraphSearchService
+> ```
+
+```csharp
+public class SearchController : Controller
+{
+    private readonly IGraphContentClient _graphClient;
+
+    public SearchController(IGraphContentClient graphClient)
+    {
+        _graphClient = graphClient;
+    }
+}
+```
+
+> **Operational step — don't forget the re-index.** Each environment has its own Graph index keyed by a per-environment AppKey/SingleKey in `appsettings`. A fresh CMS 13 index is **empty** until you run the **"Content Graph Full Re-index"** scheduled job (Admin → Scheduled Jobs) against that environment's database. Re-indexing prod does not populate dev, and vice-versa. (CMS 13 Graph answers the `_Content` root field; a CMS-12-era index answers `Content` — pointing a CMS 13 app at an un-reindexed CMS 12 index errors `Cannot query field "_Content"`.)
 
 ```csharp
 public class SearchController : Controller
@@ -121,6 +155,8 @@ var content = await _graphClient.QueryContent<Recipe>().GetAsContentAsync();
 
 // WARNING: Do NOT combine .Fields() with .GetAsContentAsync() — throws InvalidOperationException
 ```
+
+> **Field note (verified OxyChem June 2026):** for the `QueryContent<T>()` / `IContentQuery<T>` path, the execution method is **`GetAsContentAsync(ct)`**, exposed via the `IGetAsContentAsync<T>` interface — there is no `GetAsync()` on that path (`GetAsync()` lives on the concrete `ContentQuery<T>` / POCO path). The result is `IGetAsContentResult<T>`, which **is** `IEnumerable<T>` — iterate it directly, there is **no `.Items` property**. `IGraphContentClient.QueryContent<T>()` returns `ISearchableContentQuery<T>`.
 
 ## Streaming with IAsyncEnumerable
 

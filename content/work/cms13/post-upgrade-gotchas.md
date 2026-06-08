@@ -181,6 +181,40 @@ Remove each exclusion when the vendor ships a CMS 13-compatible package.
 
 ---
 
+### Excluding the Assembly Isn't Enough — Stale Jobs in the DB Still Crash the Admin UI
+
+**Symptom:** Startup is now clean (you excluded the offending assembly above), but opening **Admin → Scheduled Jobs** throws:
+```
+CustomAttributeFormatException: 'SortIndex' property specified was not found
+```
+The error comes from `ScheduledJobsController.CreateViewModelAsync`, not from boot.
+
+**Root cause:** `ExcludeAssemblyFromEpiServerScan` stops *new* registrations, but scheduled jobs from the old package are **already persisted in the database**. `IScheduledJobRepository.List()` still returns them, and the admin controller calls `GetCustomAttribute<ScheduledPlugInAttribute>()` on those now-incompatible types — which trips the same `SortIndex` removal that crashed the scanner.
+
+**Fix:** an `IInitializableModule` that deletes the orphaned job rows at startup:
+
+```csharp
+[InitializableModule]
+public class LegacyScheduledJobCleanupModule : IInitializableModule
+{
+    public void Initialize(InitializationEngine context)
+    {
+        var repo = context.Locate.Advanced.GetRequiredService<IScheduledJobRepository>();
+        foreach (var job in repo.List()
+                     .Where(j => j.AssemblyName != null &&
+                                 j.AssemblyName.Contains("Geta.NotFoundHandler.Optimizely")))
+        {
+            repo.Delete(job.ID);   // Delete(Guid) is the correct overload
+        }
+    }
+    public void Uninitialize(InitializationEngine context) { }
+}
+```
+
+**Two details that bite:** filter on `ScheduledJob.AssemblyName` (not `TypeName`), and use the `Delete(Guid)` overload (`job.ID`). Remove this module once the vendor package is CMS 13-native.
+
+---
+
 ### Local Dev: Create `App_Data/blobs/` Before First Run
 
 **Symptom:** Shortly after login, every page request throws:
@@ -238,23 +272,36 @@ This won't appear until a page with image blocks is actually rendered — a clea
 
 ---
 
-### The Content Graph SDK Breaks Startup — Use an Abstraction
+### The Content Graph SDK — Right Package Name + Two DI Registrations
 
-**Symptom:** You add `Optimizely.ContentGraph.Cms` to replace EPiServer.Find and the app throws `InvalidOperationException` at startup from the EPiServer assembly scanner before any pages load.
+> **Updated June 2026 (OxyChem CMS 13.0.2).** Earlier advice here was "don't add the package, ship a `NullSearchService` stub and wait for a CMS 13 build." That build now exists — under a **different package name**. The abstraction is still good architecture; the difference is you now swap in the *real* implementation instead of waiting.
 
-**Root cause:** As of CMS 13.0.2, `Optimizely.ContentGraph.Cms` 4.4.0 transitively pulls in `EPiServer.ContentDeliveryApi.Core 3.12.5` — a CMS 12 package that references `ISynchronizedObjectInstanceCache`, which is removed in CMS 13.
+**The trap:** adding `Optimizely.ContentGraph.Cms` (the CMS 12 package) throws `InvalidOperationException` at startup from the EPiServer assembly scanner before any pages load — its 4.4.0 build transitively pulls `EPiServer.ContentDeliveryApi.Core 3.12.5`, a CMS 12 package referencing the removed `ISynchronizedObjectInstanceCache`.
 
-**Fix:** Don't add the package yet. Create a thin `ISearchService` abstraction and a `NullSearchService` stub that returns empty results. Wire all search controllers to the interface. When Optimizely ships a CMS 13-compatible SDK build, swap in a real implementation — nothing else changes:
+**Fix:** Use the **renamed** CMS 13 packages, not the old one:
 
-```csharp
-// Register the stub
-services.AddScoped<ISearchService, NullSearchService>();
-
-// Later, when SDK is compatible:
-// services.AddScoped<ISearchService, ContentGraphSearchService>();
+```xml
+<!-- NOT Optimizely.ContentGraph.Cms (CMS 12 only) -->
+<PackageReference Include="Optimizely.Graph.Cms" Version="13.0.2" />
+<PackageReference Include="Optimizely.Graph.Cms.Query" Version="13.0.2" />
 ```
 
-Ship with empty search results rather than not shipping at all. That's the right trade-off.
+Then register **both** sides of Graph — this is its own gotcha:
+
+```csharp
+services.AddContentGraph();        // indexing/sync side
+services.AddGraphContentClient();  // query client — namespace Optimizely.Cms.DependencyInjection (!)
+```
+
+`AddGraphContentClient()` is in the unexpected `Optimizely.Cms.DependencyInjection` namespace. Without it, search 500s: `Unable to resolve service for type 'Optimizely.Graph.Cms.Query.IGraphContentClient'`.
+
+Keep the `ISearchService` abstraction — wire all search controllers to it and back it with a real `ContentGraphSearchService`:
+
+```csharp
+services.AddScoped<ISearchService, ContentGraphSearchService>();
+```
+
+**Then re-index:** the index is empty until you run the **"Content Graph Full Re-index"** scheduled job against that environment's DB. Index keys are per-environment, so each env must be re-indexed independently. See [[graph-sdk|Optimizely Graph SDK]] for the query API (`GetAsContentAsync`, not `GetAsync`).
 
 ---
 

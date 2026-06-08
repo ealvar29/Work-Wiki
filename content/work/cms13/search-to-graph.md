@@ -37,11 +37,15 @@ services.AddContentManager();    // Depends on Graph
 
 **For .NET backends — C# SDK:**
 
+Install the **renamed CMS 13 packages** (`Optimizely.Graph.Cms` + `Optimizely.Graph.Cms.Query` 13.0.2 — *not* the CMS-12-only `Optimizely.ContentGraph.Cms`) and register **both** sides:
+
 ```csharp
-services.AddGraphContentClient();
+services.AddContentGraph();        // indexing / sync
+services.AddGraphContentClient();  // query client (namespace Optimizely.Cms.DependencyInjection)
 
 // Then inject IGraphContentClient and use the fluent API
-// See: [[graph-sdk|Graph C# SDK]]
+// See: [[graph-sdk|Graph C# SDK]] for the package rename, the dual-registration gotcha,
+// and the GetAsContentAsync query API — all field-verified on the OxyChem upgrade.
 ```
 
 **For non-.NET frontends / edge functions — direct fetch:**

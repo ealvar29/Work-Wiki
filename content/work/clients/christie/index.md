@@ -21,9 +21,9 @@ tags:
 | CMS | Optimizely CMS 12 | CMS 13.x |
 | Runtime | .NET 6 | .NET 10 |
 | Commerce | Optimizely Commerce 14 | Commerce 15 |
-| Search | EPiServer.Find | Optimizely Graph |
-| Forms | EPiServer.Forms | Awaiting CMS 13 release |
-| Localization | Optimizely LanguageManager | Awaiting CMS 13 release |
+| Search | EPiServer.Find | Optimizely Graph (`Optimizely.Graph.Cms` 13.0.2 — proven on OxyChem) |
+| Forms | EPiServer.Forms | **EPiServer.Forms 6.0.0 — CMS 13-ready** (no longer a blocker; proven on OxyChem) |
+| Localization | Optimizely LanguageManager | Verify CMS 13 release status (unconfirmed) |
 
 ## Active Workstreams
 
@@ -37,10 +37,15 @@ tags:
 
 See the full upgrade guide on the `Christie-CMS13-Upgrade` branch: `CMS13-Upgrade-Guide.md`.
 
-**Hard blockers:**
-- EPiServer.Forms — no CMS 13 version confirmed as of May 2026
-- Optimizely LanguageManager — no CMS 13 version confirmed as of May 2026
-- Commerce 14 → 15 — separate major version upgrade running in parallel
+**De-risked since May 2026 (proven on the OxyChem CMS 13.0.2 upgrade — June 2026):**
+- ✅ **EPiServer.Forms** — 6.0.0 ships and works (`AddForms()`). No longer a blocker.
+- ✅ **Find → Graph** — the CMS 13 Graph SDK is real and wired end-to-end on OxyChem (renamed packages + dual DI registration + `ContentGraphSearchService`). The migration is well-trodden now — see [[cms13/graph-sdk|Graph SDK]] and [[cms13/post-upgrade-gotchas|Post-Upgrade Gotchas]].
+- ✅ **Advanced.CMS.AdvancedReviews** — 2.0.0 ships for CMS 13.
+
+**Remaining hard blockers:**
+- Optimizely LanguageManager — CMS 13 version unconfirmed; verify before estimating the localization workstream
+- Commerce 14 → 15 — separate major version upgrade running in parallel (CMS 13 is not compatible with Commerce 14)
+- Geta.Sitemaps / EnvironmentSynchronizer — still no CMS 13 release (see [[cms13/agent-quickstart|Vendor Status]])
 
 **Scale:** Christie is the most complex client engagement — **67 page types, 47 block types**. Breaking change surface area is significantly higher than other clients.
 

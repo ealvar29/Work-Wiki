@@ -161,12 +161,18 @@ services.AddVisitorGroupsMvc().AddVisitorGroupsUI();
 
 ## 16. Third-Party Known Issues
 
-At GA, known incompatibilities exist with:
-- Optimizely Forms
-- Geta packages
-- Any package built against Search & Navigation
+GA-era guidance listed Optimizely Forms, Geta packages, and anything built on Search & Navigation as incompatible. As of **June 2026 (verified on the OxyChem CMS 13.0.2 upgrade)** the picture has moved:
 
-Check each package's release notes for CMS 13 support status.
+| Package | CMS 13 status |
+|---|---|
+| Optimizely Forms | ✅ **6.0.0 ships and works** — `services.AddForms()`. (Earlier "no CMS 13 release" guidance is obsolete.) |
+| Optimizely Graph (Find replacement) | ✅ Shipped under **renamed** packages `Optimizely.Graph.Cms` + `Optimizely.Graph.Cms.Query` 13.0.2 |
+| `Advanced.CMS.AdvancedReviews` | ✅ 2.0.0 ships for CMS 13 |
+| `Geta.NotFoundHandler.Optimizely` 6.0.0 | ⚠️ Installs, but still trips the scanner — needs assembly exclusion **and** stale-DB-job cleanup (see [[post-upgrade-gotchas|Post-Upgrade Gotchas]]) |
+| `Geta.Optimizely.Sitemaps`, `Geta.Optimizely.ContentTypeIcons` (service reg), `Addon.Episerver.EnvironmentSynchronizer` | ❌ No CMS 13 release yet |
+| Anything built against Search & Navigation (Find) | ❌ Find is fully removed — no compatibility path |
+
+Always check each package's release notes, but don't assume the GA-era "incompatible" list still holds.
 
 ## Sources
 
