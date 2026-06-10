@@ -52,6 +52,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[search-to-graph|Search & Navigation → Graph Migration]]
 - [[cms-rest-api|CMS REST API v1]]
 - [[custom-property-editors|Custom Property Editors]] — ES6 modules, no Dojo required
+- [[dam-integration|DAM Integration]] — Embedded DAM via External Sources/Graph, asset picker, direct-CDN delivery, video, first-time media migration
 - [[custom-admin-tools|Building Custom Admin Tools]]
 - [[removing-unused-properties|Removing Unused Properties]]
 
