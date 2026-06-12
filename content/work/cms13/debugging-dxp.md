@@ -47,6 +47,18 @@ Build your observability in from the start:
 
 Previous DXP versions had simpler remote debugging, but architectural changes to the managed platform removed that capability. Don't fight the platform — invest in logging instead.
 
+## First-boot crash loops
+
+When an environment won't start at all (warmup returns 503), it's usually a startup
+exception, not a debugging problem. The **DXP log stream** (PaaS portal) shows the
+container's stdout including the unhandled exception and stack — that's the fastest path to
+the cause. Common first-boot failures on restored-DB upgrades (DB compat level, hostname
+bindings, empty Graph index) are catalogued in [[deploying-to-dxp|Deploying a CMS 13 Upgrade to DXP]].
+
+## Related
+
+- [[deploying-to-dxp|Deploying a CMS 13 Upgrade to DXP]] — the deploy pipeline + first-boot error catalogue
+
 ## Sources
 
 - [Mike — Remote Debugging in Optimizely DXP: What Is Actually Possible?](https://world.optimizely.com/blogs/mike/dates/2026/4/remote-debugging-in-optimizely-dxp-what-is-actually-possible-/) *(Apr 2026)*
