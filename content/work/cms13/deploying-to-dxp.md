@@ -128,6 +128,7 @@ no stack (detailed errors are off outside `Development`).
 | Symptom in the log | Cause | Fix |
 |---|---|---|
 | `InvalidOperationException: The compatibility level for the database is unsupported. It is 130 but must be at least 140.` | Restored DB is at SQL compat level 130 (SQL 2016); CMS 13 needs ≥ 140. | Set `UpdateDatabaseCompatibilityLevel = true` on `DataAccessOptions` (`services.Configure<DataAccessOptions>(o => { o.UpdateDatabaseSchema = true; o.UpdateDatabaseCompatibilityLevel = true; })`). The app raises the level itself on next boot — the DXP SQL user is `db_owner`. |
+| `EPiServerException: Content type 'SysContentFolder' is not allowed to be created under parent of content type 'SysRoot'` (thrown by `BlueprintInitialization.InitializeBlueprintContentRoot`). The `TaskCanceledException` in `WarmupHostedService` underneath it is just fallout of the host tearing down. | The prod DB has a persisted "available content types" whitelist on `SysRoot` (often from a custom init module that calls `IAvailableSettingsRepository.RegisterSetting`, or an admin-UI setting). **CMS 13 now enforces that whitelist even for its OWN system root registration** (CMS 12 didn't). The whitelist excludes `SysContentFolder`, so CMS blocks itself and aborts (exit 134). It's persisted **data**, stored in `tblContentTypeToContentType` (rows where `fkContentTypeParentID` = SysRoot's pkID) — so disabling the code module does **not** clear it, and you usually can't reach the DXP SQL externally (firewall). | Clear SysRoot's availability rows **before CMS init**, from *inside* the app (the container can reach the DB). In `Program.cs`, between `Build()` and `Run()`, run `DELETE FROM tblContentTypeToContentType WHERE fkContentTypeParentID = (SELECT pkID FROM tblContentType WHERE Name='SysRoot')` via a raw `Microsoft.Data.SqlClient` connection using the `EPiServerDB` connection string. Idempotent, guarded, runs before `BlueprintInitialization`. (Init modules run *after* blueprint, so they can't fix it.) |
 | Site returns 503 / wrong site / "no site" even after a clean boot | The restored DB carries **production hostnames** in its site definitions. If `EnvironmentSynchronizer` isn't an active package in CMS 13, nothing rewrites them per-environment. | Log in via `…dxcloud.episerver.net/util/login` (local admin account — SAML ReturnUrl points at the prod host and won't work via the slot URL), then Admin → **Manage Websites** → add the `…inte.dxcloud.episerver.net` host to the correct site definition. |
 | Search returns nothing | Optimizely Graph index for the new env is empty. | Run the **"Content Graph Full Re-index"** scheduled job. Note: **DXP injects its own ContentGraph keys** (lowercase `optimizely:contentgraph:*`) as env vars that override your appsettings keys — so each DXP env has its **own isolated index** (re-indexing one env won't touch another). |
 
@@ -142,13 +143,118 @@ the environment name, e.g. `Integration`, so `appsettings.Integration.json` load
 automatically.) You may also see leftover `EPiServer:Find:*` env vars injected even on a
 Find-free CMS 13 site — harmless, just unused.
 
+## Reading the *real* startup error (the deployment log won't have it)
+
+This is the single biggest time-saver. When the slot 503s, the **DXP deployment log**
+(portal job view, "Get Detailed Log", the emailed CSV) only ever shows DXP's own health
+probe getting a 503 — it **never** contains the app's exception. The actual stack lives in
+the **App Service console log**, which DXP archives to blob storage.
+
+- The env var `DIAGNOSTICS_AZUREBLOBCONTAINERSASURL` (visible in the container's
+  `==== CONFIGURATION ====` dump on boot) is a long-lived SAS URL to the
+  `insights-logs-appserviceconsolelogs` container.
+- Blobs are hourly: `…/SITES/<app>/SLOTS/SLOT/y=YYYY/m=MM/d=DD/h=HH/m=00/PT1H.json`.
+- Each line is a JSON record; the log text is in the `resultDescription` field with `\r\n`
+  escapes. Fetch the boot hour, pull `resultDescription`, decode the escapes → full stack.
+
+Tell the two logs apart at a glance:
+
+| Looks like… | It's the… | Has the exception? |
+|---|---|---|
+| `::PROGRESS:: PercentComplete=…`, `/episerver/health … 503` | Deployment log | ❌ never |
+| `==== CONFIGURATION START ====`, then `fail:` / `Unhandled exception` / `at …` | **App console log** | ✅ this one |
+
+> The app crash-loops, so the console-log blob keeps re-printing the boot + exception.
+> If it looks idle, hit the slot URL (below) to trigger a fresh boot, then re-fetch.
+
+## After it boots: NREs from restored content
+
+Getting the app to **start** is a different milestone from getting pages to **render**.
+Once it boots, expect a run of `NullReferenceException`s while rendering, because the
+restored production content references items that don't resolve cleanly in the new
+environment, and the views weren't written to handle "came back empty" (they never had to
+in prod). Typical:
+
+```
+NullReferenceException
+   at …Views/Shared/Components/<Block>/Default.cshtml:line N
+```
+
+- Root pattern: `item.LoadContent()` returns **null** for an orphaned/unpublished
+  reference, then the code dereferences `.Property[...]` on it.
+- `LoadContent()` results consumed via `x as SomeType` / `x is SomeType` are null-safe;
+  direct `.Property[...]` access is **not** — guard those (`if (x == null) continue;`).
+- It "moves" line to line (109 → 158 → next file) because the same unguarded pattern
+  repeats — fix all occurrences in a view/component in one pass instead of per-deploy.
+- Read the **console log** (above) to get the exact `file:line` for each one.
+
+These are normal "harden the views against real data" fixes, not infrastructure problems.
+
+### Add-ons still built for CMS 12 (MissingMethodException)
+
+A package can **boot fine** on CMS 13 yet throw on a specific runtime path, because it was
+compiled against CMS 12 assemblies. The signature is a `MissingMethodException` naming a
+method whose signature changed between 12 and 13. Real example:
+
+```
+System.MissingMethodException: Method not found:
+'EPiServer.Core.PageReference EPiServer.Core.PageData.get_ParentLink()'
+   at Geta.NotFoundHandler.Optimizely.Core.AutomaticRedirects.CmsContentUrlProvider.GetPageUrl(...)
+   at ...AutomaticRedirects.ContentUrlHistoryEvents.OnPublishedContent(...)   ← fires on every Publish
+```
+
+- Here `Geta.NotFoundHandler.Optimizely 6.0.0` is the **CMS 12** build; CMS 13 changed
+  `PageData.ParentLink` (was `PageReference`). Every content **Publish** crashed.
+- **Stopgap:** disable the offending feature (`AutomaticRedirectsEnabled = false`).
+- **Proper fix:** upgrade to the CMS 13 build (`7.0.0`, targets net10.0, deps
+  `EPiServer.CMS.UI.Core 13.1.0`). Note a package's CMS 13 build often pulls a newer
+  EPiServer minor (13.0.x → 13.1.x), so treat it as a coordinated bump, not a hotfix.
+- Lesson: after upgrading, **exercise content events** (publish/move/delete), not just page
+  loads — that's where CMS-12-era add-ons surface. Check each add-on has a CMS 13 build.
+
+## Going live: staging slot → Complete, and getting into the CMS
+
+A DXP deploy lands on a **staging slot** and waits at *AwaitingVerification*. Until you
+**Complete** it, the public URL still serves the DXP placeholder
+("Welcome! Your environment is provisioned", served by nginx — and `/util/login` 404s
+there). Your deployed app is on the slot.
+
+- **See the app on the slot:** append `?x-ms-routing-name=slot` to any URL, e.g.
+  `https://<env>.dxcloud.episerver.net/?x-ms-routing-name=slot`.
+- **Go live:** PaaS portal → Deployments → the *AwaitingVerification* deployment →
+  **Complete deployment** (swaps slot → live). Or `Complete-EpiDeployment -Id <id>` in
+  EpiCloud. A hand-rolled EpiCloud script that stops at `Start-EpiDeployment` never goes
+  live — add the Complete step (the Optimizely DXP marketplace extension has it as a
+  separate "Complete deploy" task).
+
+**Getting into the editor after go-live:**
+
+- The on-page **quick-navigator "Opti" edit button was removed in CMS 13**
+  (`RenderEPiServerQuickNavigatorAsync` is gone). Don't wait for a floating button on the
+  front end — navigate to the editor by URL. **In CMS 13 the editor moved from `/episerver`
+  to `/Optimizely`**: use **`/Optimizely/CMS/`** (or `/Optimizely`). Hitting `/episerver`
+  now falls through to content routing and renders the site's **custom 404** — a giveaway
+  you're on the old path.
+- If `/util/login` authenticates but the CMS won't open, check: (a) the account is in a
+  CMS edit role (e.g. `WebAdmins`/`Administrators` per the site's role mappings); (b) the
+  app's **default auth scheme**. Sites that set `AddAuthentication(Saml2Defaults.Scheme)`
+  challenge unauthenticated CMS access via SAML/Azure AD — which is configured for the
+  *production* host, so it can't complete on the `dxcloud` host. Local AspNet Identity
+  accounts (`/util/login`) still authenticate, but confirm the cookie identity carries the
+  edit role.
+
 ## Quick checklist for the next upgrade
 
 - [ ] csproj TFM matches what the build/publish tasks pass (or drop `--framework`)
 - [ ] Package name has `.cms.app.`; assemblies at package **root**
 - [ ] DXP API creds in a Variable Group; secret mapped via task **Environment Variables**
 - [ ] `UpdateDatabaseCompatibilityLevel = true` if deploying onto a restored older DB
-- [ ] After first boot: fix host bindings in admin, then run Graph re-index
+- [ ] Restored DB? Pre-clear the `SysRoot` availability whitelist before CMS init (Program.cs)
+- [ ] When a slot 503s, read the **App Service console-log blob** for the real exception — not the deployment log
+- [ ] After boot, harden views against null `LoadContent()` from orphaned content refs
+- [ ] **Complete** the deployment to go live (slot → live); verify on `?x-ms-routing-name=slot` first
+- [ ] Editor is at `/Optimizely/CMS/` in CMS 13 (not `/episerver`); no on-page Opti button; confirm login account has a CMS role
+- [ ] After go-live: fix host bindings in admin if needed, then run Graph re-index
 - [ ] Don't trust a green pipeline — confirm the slot serves 200
 
 ## Related
