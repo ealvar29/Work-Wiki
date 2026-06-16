@@ -212,6 +212,33 @@ System.MissingMethodException: Method not found:
 - Lesson: after upgrading, **exercise content events** (publish/move/delete), not just page
   loads — that's where CMS-12-era add-ons surface. Check each add-on has a CMS 13 build.
 
+### Absolute URLs point at production (images, search, links)
+
+After a prod-DB restore you'll see media, search, and links resolve to the **production
+domain** — `<img src="https://www.oxy.com/siteassets/...">`, the search box submitting to
+`www.oxy.com/...`, etc. One root cause behind all of them: the CMS **site definitions still
+carry production hostnames as the Primary host** (they came over in the database). So
+Optimizely's URL resolver (`IUrlResolver.GetUrl` / `Url.ContentUrl`) emits **absolute prod
+URLs** for any content it treats as belonging to that (prod-hosted) site.
+
+Where it shows up:
+- **Images** render as `https://www.oxy.com/siteassets/...` (and are then *also* blocked by
+  CSP if the prod host isn't in `img-src` — see the CSP note above).
+- **Search** navigates to `www.oxy.com` (the search-page URL is built from `ContentUrl`).
+- Any link built via `ContentUrl` / an absolute URL helper.
+
+The fix is **per-environment host configuration**, not code:
+- Set the environment's own host as the site's **Primary** — the `dxcloud` host for
+  slot/URL testing, or the `int.*` host once DNS + DXP custom domains exist. With the
+  current request's host primary on the same site, `ContentUrl` returns **relative** URLs
+  and everything stays on the environment.
+- **Automate it with `Addon.Episerver.EnvironmentSynchronizer`** (needs the CMS 13 build,
+  2.0.1+): it applies per-environment site/host definitions from `appsettings.<Env>.json`
+  on startup, so you don't hand-edit hosts after every restored DB. This single add-on
+  fixes images, search, links, **and** the manual host-binding chore at once.
+- Caveat: whichever host you make Primary must actually resolve (DNS / custom domain), or
+  the URLs just point somewhere unreachable instead of prod.
+
 ## Going live: staging slot → Complete, and getting into the CMS
 
 A DXP deploy lands on a **staging slot** and waits at *AwaitingVerification*. Until you
