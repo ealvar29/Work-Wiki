@@ -26,25 +26,57 @@ This is a different architecture from the CMS 12-style picker — the new integr
 
 So selection and metadata route through CMS + Graph; the file itself is served straight from the DAM CDN. Nothing large flows through the CMS at serve time.
 
-## Setup
+## Three Integration Options
+
+Optimizely offers **three** DAM integration modes — only one keeps editors fully inside the CMS. Pick deliberately; configuring the wrong one is the usual cause of "why does the DAM open in a separate window?"
+
+| Mode | In-CMS experience? | Notes |
+|---|---|---|
+| **Embedded DAM** | ✅ **Fully inside the CMS** | Adds a DAM option to the CMS side panel / Edit menu ("Embeddable DAM"). Browse, filter, tag, and pick assets **without leaving CMS**. Requires **DXP + Opti ID + Graph**. The setup below is for this mode. |
+| **DAM Asset Picker** | ❌ Separate window | Opens the DAM in a separate tab/pop-up. A developer must install the picker and add a button to launch it. |
+| **Content Manager** | ⚠️ Partial | Source-agnostic multi-source browser; does **not** surface DAM-specific metadata (folder hierarchy, tags, filters). |
+
+**Embedded DAM is not available on on-premises or HIPAA environments** — DXP only.
+
+## Setup — Enabling Embedded DAM (official steps)
+
+Confirmed by Optimizely Support for a CMS 13 DXP instance. Prerequisites first: a **DXP environment**, **Opti ID**, and an **active Optimizely Graph** service.
+
+**1. Add the integration NuGet package:**
+
+```
+EPiServer.Cms.DamIntegration.UI
+```
+
+**2. Register the DAM UI service:**
 
 ```csharp
 // Startup.cs
 services.AddDamUI();
 ```
 
-```csharp
-// _ViewImports.cshtml — enables render helpers such as RenderTagWithMetadata(...)
-@addTagHelper *, EPiServer.Cms.DamIntegration.UI
-```
+**3. Add the import to `_ViewImports.cshtml`** (enables render helpers such as `RenderTagWithMetadata(...)`):
 
 ```csharp
-// Property — apply the Image UIHint to a ContentReference
+@using EPiServer.Cms.DamIntegration.UI.Helpers
+```
+
+**4. Configure CMP/DAM credentials in `appsettings.json`** — the **SSO ID, Client ID, and Client Secret** from your Content Marketing Platform (CMP) account.
+
+**5. Select the DAM instance in the admin UI:** go to **Settings → Optimizely DAM Features**, pick your DAM instance from the drop-down, and **Save**.
+
+**6. Apply the Image UIHint** to any `ContentReference` properties that should use DAM assets:
+
+```csharp
 [UIHint(UIHint.Image)]
 public virtual ContentReference HeroImage { get; set; }
 ```
 
-Prerequisites: **Opti ID** (SSO), an **active Optimizely Graph** service, **CMP API client credentials**, and DAM assets **indexed into Graph via External Sources**. Optimizely Support must enable the DAM ↔ Graph ↔ CMS integration for your environment — *"Contact Support to integrate Optimizely DAM and Optimizely Graph with CMS 13."*
+DAM assets must also be **indexed into Graph via External Sources**. Optimizely Support enables the DAM ↔ Graph ↔ CMS integration **per environment** — *"Contact Support to integrate Optimizely DAM and Optimizely Graph with CMS 13."* It does **not** carry over automatically between a client's separate projects/instances.
+
+> [!warning] Limitations confirmed by Support
+> - **Export/import of content carrying DAM asset references between CMS instances is not supported.** Plan content moves accordingly.
+> - **On-premises and HIPAA environments cannot use Embedded DAM** — DXP only.
 
 ## Editor Workflow
 
@@ -100,4 +132,7 @@ Recommended approach:
 - [Optimizely CMS DAM integration options](https://docs.developers.optimizely.com/content-management-system/v13.0.0-CMS/docs/digital-asset-management-dam) *(Jun 2026)*
 - [Configure the DAM asset picker for CMS 13](https://docs.developers.optimizely.com/content-management-system/v13.0.0-CMS/docs/configure-dam-asset-picker-cms13) *(Jun 2026)*
 - [Integrate CMP DAM with CMS for asset management](https://docs.developers.optimizely.com/content-management-system/docs/cmp-dam-in-cms) *(Jun 2026)*
+- [Enable Optimizely Graph service to sync DAM and CMS](https://docs.developers.optimizely.com/digital-experience-platform/docs/enable-optimizely-graph-service) *(Jun 2026)*
+- [2026 Optimizely CMS 13 GA release notes](https://support.optimizely.com/hc/en-us/articles/44734633809037-2026-Optimizely-CMS-13-general-availability-GA-release-notes) *(Jun 2026)*
 - Optimizely Support ticket [#1902636](https://support.optimizely.com/hc/requests/1902636) — first-time DAM adoption relinking scope *(Jun 2026)*
+- Optimizely Support — Embedded DAM enablement steps for CMS 13 DXP *(Jun 2026)*
