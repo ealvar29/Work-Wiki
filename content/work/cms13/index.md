@@ -50,6 +50,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 
 ## APIs & Development
 
+- [[graph-vs-search-navigation|Graph vs Search & Navigation]] — how Graph works as a system + architectural comparison to retired S&N (start here for the concepts)
 - [[graph-sdk|Graph C# SDK]] — replaces Search & Navigation fluent API
 - [[search-to-graph|Search & Navigation → Graph Migration]]
 - [[cms-rest-api|CMS REST API v1]]
