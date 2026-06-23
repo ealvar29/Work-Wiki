@@ -7,8 +7,6 @@ tags:
   - visual-builder
 ---
 
-# Visual Builder in CMS 13
-
 Visual Builder is the default editing experience in CMS 13. On-Page Editing (OPE) is disabled by default — not removed, just off.
 
 ## Re-enabling On-Page Editing

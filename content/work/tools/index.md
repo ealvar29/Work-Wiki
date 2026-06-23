@@ -5,8 +5,6 @@ tags:
   - jaxon
 ---
 
-# Jaxon Tools
-
 Internal tools built by the Jaxon Digital team to accelerate development and client upgrade workflows.
 
 ## Upgrade Tools

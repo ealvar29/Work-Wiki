@@ -6,8 +6,6 @@ tags:
   - dotnet
 ---
 
-# Optimizely CMS 13
-
 Optimizely CMS 13 is the latest major version of the Optimizely Content Management System (formerly Episerver). It targets .NET 10 and introduces significant architectural changes over CMS 12.
 
 ## Key Changes from CMS 12

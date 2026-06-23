@@ -7,8 +7,6 @@ tags:
   - cms
 ---
 
-# Cambro
-
 **Site:** cambro.com  
 **Industry:** Food service equipment manufacturing  
 **Hosting:** Optimizely DXP (Azure)

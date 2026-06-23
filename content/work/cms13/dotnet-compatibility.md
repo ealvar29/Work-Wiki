@@ -6,8 +6,6 @@ tags:
   - dotnet
 ---
 
-# CMS 13 .NET Compatibility
-
 CMS 13 was built for the modern .NET unified platform. Here's what's officially supported and what's on the horizon.
 
 ## Current Support

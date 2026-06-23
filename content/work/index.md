@@ -2,8 +2,6 @@
 title: Work
 ---
 
-# Work
-
 Topics related to my professional development in software engineering.
 
 ## Topics

@@ -10,8 +10,6 @@ tags:
   - azure-devops
 ---
 
-# XhtmlString Fields Rendering as Plain Text: Pipeline .NET SDK Mismatch
-
 XhtmlString fields stop initializing TinyMCE in the edit UI — editors see a plain text box instead of a rich text editor. The issue only appears in deployed environments (DXP, staging), not local dev. No obvious errors in the browser console pointing to TinyMCE directly.
 
 **Root cause:** the Azure DevOps build pipeline is using a newer .NET SDK than the project targets. The `windows-latest` hosted agent ships with multiple SDK versions installed; without an explicit pin, `dotnet publish` defaults to the newest available — which can produce a malformed `.deps.json` that breaks the Optimizely UI framework.

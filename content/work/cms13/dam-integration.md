@@ -8,8 +8,6 @@ tags:
   - media
 ---
 
-# DAM Integration in CMS 13
-
 CMS 13 integrates the Optimizely DAM through the `EPiServer.Cms.DamIntegration.UI` package. The key mental model: **the CMS stores references and tracks usage; the DAM's CDN delivers the actual bytes directly to the browser.** The CMS never proxies or stores the asset binary.
 
 This is a different architecture from the CMS 12-style picker — the new integration **no longer calls the CMP REST API directly**. It is built on **External Sources**, so DAM assets must be indexed into the Optimizely Graph instance connected to your CMS.

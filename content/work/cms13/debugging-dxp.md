@@ -7,8 +7,6 @@ tags:
   - devops
 ---
 
-# Debugging in Optimizely DXP
-
 ## The Short Answer
 
 True remote debugging against a live DXP environment is **not a supported workflow**. The platform is a managed PaaS built on Azure App Service, and the infrastructure restrictions are intentional.

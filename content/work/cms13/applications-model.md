@@ -7,8 +7,6 @@ tags:
   - architecture
 ---
 
-# Applications Model in CMS 13
-
 CMS 13 replaces `SiteDefinition` entirely with a new **Applications** model. If your code references `SiteDefinition`, `ISiteDefinitionRepository`, or `SiteDefinition.Current`, all of it needs to change.
 
 ## The New Classes

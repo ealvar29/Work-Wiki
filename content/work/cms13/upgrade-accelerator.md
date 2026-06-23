@@ -7,8 +7,6 @@ tags:
   - accelerator
 ---
 
-# CMS 13 Upgrade Accelerator
-
 This is the **start here** page for any CMS 13 client upgrade engagement. Work through it top to bottom before touching any code. The wiki has everything you need — this page tells you what to read and when.
 
 ---

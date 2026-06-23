@@ -7,8 +7,6 @@ tags:
   - migration
 ---
 
-# Removing Unused Properties in CMS 13
-
 When you delete a property from a C# content model in Optimizely, the database entry sticks around as an orphaned definition. CMS 13 changed the API for cleaning these up — the old pattern breaks.
 
 ## What Changed

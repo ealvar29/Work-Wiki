@@ -8,8 +8,6 @@ tags:
   - search
 ---
 
-# CMS 12 → 13 Migration: Real-World Walkthrough
-
 A case study of migrating a search-heavy CMS 12 solution to CMS 13 on .NET 10, including the full Find → Graph rewrite. The high-level strategy is in [[upgrading-from-cms12|Upgrading from CMS 12]]; this page focuses on the patterns and pitfalls encountered in a real project.
 
 ## Migration Phases

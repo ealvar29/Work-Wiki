@@ -7,8 +7,6 @@ tags:
   - cms
 ---
 
-# VHB
-
 **Site:** vhb.com  
 **Industry:** Engineering & infrastructure consulting  
 **Hosting:** Optimizely DXP (Azure)

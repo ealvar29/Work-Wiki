@@ -9,8 +9,6 @@ tags:
   - tools
 ---
 
-# Optimizely Upgrade Assistant MCP
-
 An in-house MCP server (built by the Jaxon Digital team) that gives Claude and other AI coding assistants structured, static-analysis-backed intelligence about a CMS 12 → CMS 13 upgrade. Rather than asking Claude to figure out what needs to change by reading the codebase cold, the MCP pre-analyses the repo and hands Claude an ordered task list, LOE estimate, and ticket exports.
 
 **Repo:** `H:\GitKraken\Optimizely-MCP\optimizely-upgrade-assistant`

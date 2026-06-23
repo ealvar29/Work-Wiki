@@ -8,8 +8,6 @@ tags:
   - seo
 ---
 
-# AI Readability MCP
-
 An in-house MCP server that audits any website for **AI crawler readability** — how visible and legible the site's content is to LLMs like Claude, GPT, Perplexity, and Gemini. Produces a scored report across 8 dimensions with a letter grade, prioritised recommendations, and client-ready output.
 
 **Repo:** `H:\GitKraken\ai-readability-mcp`

@@ -6,8 +6,6 @@ tags:
   - gotchas
 ---
 
-# CMS Gotchas
-
 Unexpected platform and infrastructure changes that break CMS sites — not tied to a specific version upgrade.
 
 ## Pipeline & Build

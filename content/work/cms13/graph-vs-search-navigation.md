@@ -8,8 +8,6 @@ tags:
   - architecture
 ---
 
-# Graph vs Search & Navigation — How It Works & What Changed
-
 The conceptual explainer: **how Optimizely Graph works as a system**, and how that differs architecturally from the retired Search & Navigation (Find). For the hands-on API and migration mechanics, see [[graph-sdk|Graph C# SDK]] and [[search-to-graph|Search & Navigation → Graph Migration]] — this page is the "why" and "how it fits together" behind those.
 
 ## The one-sentence difference

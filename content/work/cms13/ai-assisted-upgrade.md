@@ -8,8 +8,6 @@ tags:
   - claude
 ---
 
-# AI-Assisted CMS 13 Upgrades
-
 CMS 13 has a lot of breaking changes. AI coding tools — especially Claude Code — can significantly reduce the manual effort. David Knipe documented a practical approach using a structured Claude Code prompt to drive the migration.
 
 ## Before Running This Prompt

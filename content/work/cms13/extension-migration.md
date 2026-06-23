@@ -8,8 +8,6 @@ tags:
   - dotnet
 ---
 
-# Migrating a CMS Extension from CMS 12 to CMS 13
-
 Upgrading a reusable CMS package or add-on to CMS 13 follows a different checklist than upgrading a site. Extension authors need to handle framework targeting, removed generics, admin UI changes, and the new shell tag helper.
 
 ## Target Framework

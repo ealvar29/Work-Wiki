@@ -7,8 +7,6 @@ tags:
   - training
 ---
 
-# CMS 13 Refresher — Crash Course
-
 A from-the-ground-up path to get fully confident on CMS 13 — what it is, what changed, how an upgrade actually runs, and the distinctions people (including us) get tripped up on. Work top to bottom; each section links to the deep-dive page when you want more.
 
 If you only remember one thing: **CMS 13 is a platform modernization, not a version bump.** Three things are mandatory, everything else is additive.

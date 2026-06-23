@@ -8,8 +8,6 @@ tags:
   - ai
 ---
 
-# Client CLAUDE.md Generator
-
 A script that generates a self-contained `CLAUDE.md` for a CMS 13 upgrade engagement. Rather than pointing Claude Code at the wiki and hoping it reads the right pages, the generator assembles the key upgrade knowledge inline so the agent starts every session already knowing the critical path.
 
 **Script:** `scripts/gen-client-claude-md.js` in the wiki repo.

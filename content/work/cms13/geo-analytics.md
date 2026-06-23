@@ -9,8 +9,6 @@ tags:
   - geo
 ---
 
-# GEO Analytics for CMS 13 (PaaS)
-
 **GEO (Generative Engine Optimization) Analytics** is an Optimizely Reporting dashboard that tracks AI platform traffic to your site — which AI agents are crawling it, which pages they're hitting, and whether those crawls are actually turning into referrals (i.e., your content being surfaced in ChatGPT, Perplexity, Claude, etc.).
 
 > [!warning] Legacy feature — access closed May 31, 2026

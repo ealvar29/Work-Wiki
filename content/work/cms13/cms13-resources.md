@@ -6,8 +6,6 @@ tags:
   - resources
 ---
 
-# CMS 13 Resources & Links
-
 Curated list of high-quality sources for learning and staying current on Optimizely CMS 13.
 
 ## Official

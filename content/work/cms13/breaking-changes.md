@@ -7,8 +7,6 @@ tags:
   - breaking-changes
 ---
 
-# Breaking Changes in CMS 13
-
 Full catalog of breaking changes. The [official docs](https://docs.developers.optimizely.com/content-management-system/v13.0.0-CMS/docs/breaking-changes-in-cms-13) cover all nine categories. The most impactful ones are here.
 
 **Tip from Optimizely docs:** "Binary breaking changes do not necessarily require code changes — just recompilation." Use compiler warnings as your migration roadmap: deprecated APIs produce warnings, step through them systematically.

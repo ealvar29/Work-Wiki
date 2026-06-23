@@ -7,8 +7,6 @@ tags:
   - cms
 ---
 
-# Oxy (Occidental Petroleum)
-
 **Site:** oxy.com  
 **Industry:** Oil & gas / chemicals  
 **Hosting:** Optimizely DXP (Azure)

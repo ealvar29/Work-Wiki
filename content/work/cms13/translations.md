@@ -7,8 +7,6 @@ tags:
   - translation
 ---
 
-# Translations & Localization in CMS 13
-
 ## Automating Block Translations
 
 By default, Language Manager translates page-level properties but skips nested block content inside Content Areas. Editors end up having to manually translate each block — a major workflow problem on complex pages.

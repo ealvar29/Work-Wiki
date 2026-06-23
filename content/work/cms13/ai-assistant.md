@@ -7,8 +7,6 @@ tags:
   - editor-tools
 ---
 
-# AI Assistant v4 for CMS 12 & 13
-
 Luc Gosso's AI Assistant is a community NuGet package that adds an AI-powered chat panel directly into the Optimizely editor interface. v4 is the first release to support both CMS 12 and CMS 13 from a single package.
 
 ## What Editors Can Do With It

@@ -6,8 +6,6 @@ tags:
   - fundamentals
 ---
 
-# What is Optimizely CMS 13?
-
 Optimizely CMS 13 is a major release of the Optimizely (formerly Episerver) content management platform. It is a server-side rendered and headless-capable CMS built on the modern .NET ecosystem.
 
 ## The Platform Stack

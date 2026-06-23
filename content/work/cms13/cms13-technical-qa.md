@@ -9,8 +9,6 @@ tags:
   - architecture
 ---
 
-# CMS 13 Technical Q&A
-
 Compiled from the March 2026 Optimizely technical webinar. Covers upgrade paths, Graph migration, frontend support, DAM, Opti ID, Opal, APIs, and Commerce compatibility.
 
 ## Upgrade & Migration

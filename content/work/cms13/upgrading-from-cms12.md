@@ -7,8 +7,6 @@ tags:
   - dotnet
 ---
 
-# Upgrading from CMS 12 to CMS 13
-
 The good news: this upgrade is significantly easier than the CMS 11 → 12 jump. That one required rewriting code due to the .NET Framework → .NET Core architectural shift. CMS 13 is refinement, not reconstruction.
 
 ## Why It's Easier This Time

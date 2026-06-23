@@ -8,8 +8,6 @@ tags:
   - bugs
 ---
 
-# Post-Upgrade Gotchas in CMS 13
-
 Real issues encountered upgrading from CMS 12 to CMS 13 GA (released March 31, 2026). These are the errors that don't show up in the breaking changes docs — silent failures, misleading error messages, and things that only bite you when an editor tries to do actual work.
 
 Organized by when they hit you. Fix Phase 1 items before touching Phase 2.

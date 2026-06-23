@@ -7,8 +7,6 @@ tags:
   - cheatsheet
 ---
 
-# CMS 12 → 13 Code Migration Cheatsheet
-
 Before/after patterns for every common swap. No prose — copy and adapt.
 
 ---

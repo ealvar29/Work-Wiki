@@ -2,8 +2,6 @@
 title: Work Wiki
 ---
 
-# Work Wiki
-
 A knowledge hub for professional development — Optimizely CMS, C#, and frontend engineering.
 
 ## Sections

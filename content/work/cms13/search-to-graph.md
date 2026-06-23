@@ -8,8 +8,6 @@ tags:
   - migration
 ---
 
-# Search & Navigation → Graph Migration
-
 Optimizely Search & Navigation (Find) is **fully removed in CMS 13**. There is no compatibility layer. Plan this migration before upgrading — don't start the CMS 13 upgrade with live S&N dependencies.
 
 **Key advice from the community:** Implement Graph during your CMS 13 upgrade rather than before. Implementing it on CMS 12 first means migrating the schema twice — the Graph schema changed between CMS 12 and CMS 13.

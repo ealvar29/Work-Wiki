@@ -8,8 +8,6 @@ tags:
   - quickstart
 ---
 
-# CMS 13 Upgrade — AI Agent Quickstart
-
 > **This page is written for AI agents.** If you are starting a CMS 12 → CMS 13 upgrade engagement, read this first before touching any code. It will save you hours.
 
 ---

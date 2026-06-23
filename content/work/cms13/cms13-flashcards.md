@@ -7,8 +7,6 @@ tags:
   - flashcards
 ---
 
-# CMS 13 Flashcards
-
 Bite-size active recall. Each card shows a **question** — say your answer out loud, then click to flip and check. Do a few a day; the ones you miss are your study list.
 
 > [!tip] How to use these

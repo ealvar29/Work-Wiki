@@ -7,8 +7,6 @@ tags:
   - checklist
 ---
 
-# CMS 13 Upgrade Checklist
-
 A consolidated checklist synthesized from the official docs, Robert Svallin's upgrade guides, and community reports. Work through these in order — the sequence matters.
 
 ## Pre-flight

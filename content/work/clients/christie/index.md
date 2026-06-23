@@ -8,8 +8,6 @@ tags:
   - commerce
 ---
 
-# Christie Digital
-
 **Site:** christiedigital.com  
 **Industry:** Visual display technology  
 **Hosting:** Optimizely DXP (Azure)

@@ -7,8 +7,6 @@ tags:
   - admin
 ---
 
-# Building Custom Admin Tools in CMS 13
-
 CMS 13 (and late CMS 12) uses `MenuProvider` as the standard pattern for adding custom tools to the admin interface. The old `GuiPlugin` attribute approach is gone.
 
 ## The Three-Layer Pattern

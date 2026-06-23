@@ -8,8 +8,6 @@ tags:
   - editor-tools
 ---
 
-# Custom Property Editors in CMS 13
-
 CMS 13 replaces Dojo-based property editors with a modern **ES6 module** approach. Existing Dojo editors still work (backward compatible), but new editors no longer need Dojo at all. Modern tooling — TypeScript, React, Vue, Webpack, Vite — is now viable.
 
 ## The Editor Function Signature

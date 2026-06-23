@@ -4,8 +4,6 @@ tags:
   - clients
 ---
 
-# Clients
-
 Active client projects at Jaxon Digital. Each client page covers tech stack, active workstreams, known quirks, and links to relevant wiki pages.
 
 > **Note:** These pages contain non-sensitive technical documentation only. No credentials, internal URLs, or confidential business information.

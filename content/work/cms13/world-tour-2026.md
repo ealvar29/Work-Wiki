@@ -12,8 +12,6 @@ tags:
   - dam
 ---
 
-# CMS 13 World Tour 2026 — Technical Notes
-
 Notes from the Optimizely CMS 13 World Tour event (May 7, 2026) covering the full technical accreditation curriculum. Eduardo passed the CMS 13 Technical Sales Accreditation exam at this event.
 
 ---

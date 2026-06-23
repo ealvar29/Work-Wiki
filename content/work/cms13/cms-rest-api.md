@@ -7,8 +7,6 @@ tags:
   - headless
 ---
 
-# CMS REST API v1
-
 Optimizely's CMS REST API v1 is the first production-stable release of their content management integration framework. Available for both CMS 13 (PaaS) and CMS SaaS, it comes with a commitment to backward compatibility and long-term support — meaning you can now build integrations against it without worrying about the rug being pulled.
 
 ## What It Can Do

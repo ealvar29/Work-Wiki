@@ -7,8 +7,6 @@ tags:
   - training
 ---
 
-# CMS 13 World Tour 2026 — Team Briefing
-
 Eduardo attended the Optimizely CMS 13 World Tour on May 7, 2026 and passed the **CMS 13 Technical Sales Accreditation**. This page is the distilled version — everything the team needs to know, with links to the detailed pages for each topic.
 
 Full technical notes: [[world-tour-2026|CMS 13 World Tour 2026 Notes]]

@@ -8,8 +8,6 @@ tags:
   - csharp
 ---
 
-# Optimizely Graph C# SDK
-
 The Graph C# SDK (`Optimizely.Graph.Cms.Query`) is the replacement for Search & Navigation's fluent query API. It's async-first, strongly-typed, and significantly more capable.
 
 > **Field-verified (OxyChem CMS 13.0.2 upgrade, June 2026).** The CMS 13 Graph packages and the exact wiring below were confirmed live in production code. This supersedes earlier guidance that the Graph SDK had no CMS 13 build — that was true only of the *old* package name (see below).
