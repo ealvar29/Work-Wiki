@@ -14,6 +14,19 @@ CMS 13 integrates the Optimizely DAM through the `EPiServer.Cms.DamIntegration.U
 
 This is a different architecture from the CMS 12-style picker — the new integration **no longer calls the CMP REST API directly**. It is built on **External Sources**, so DAM assets must be indexed into the Optimizely Graph instance connected to your CMS.
 
+> [!danger] CMS 12 vs CMS 13 — the package was renamed (read before you install)
+> DAM integration was **renamed between CMS 12 and CMS 13**, exactly like the [[graph-sdk|Graph package rename]]. Installing the CMS 12 packages on a CMS 13 project is the most common mistake here.
+>
+> | | CMS 12 (legacy) | CMS 13 (use this) |
+> |---|---|---|
+> | UI package | `EPiServer.CMS.WelcomeIntegration.UI` (+ `.Core`, `.Graph`, `Optimizely.Cmp.Client`) | **`EPiServer.Cms.DamIntegration.UI`** |
+> | Service registration | `AddDAMUi()` + `AddOptimizelyCmpClient()` + `AddDAMGraphIntegration()` | **`services.AddDamUI()`** |
+> | appsettings root | `Optimizely:Cmp:Client` + `CmpGraph:SingleKey` | `Optimizely:Cms:DamUI` + `Optimizely:Cmp:Client` |
+>
+> "Welcome" is the old name (from Optimizely's Welcome acquisition → CMP). It was consolidated into `DamIntegration.UI` for CMS 13.
+>
+> **Always use version-pinned doc URLs (`.../v13.0.0-CMS/docs/...`).** The bare `/content-management-system/docs/...` URLs serve **CMS 12** content by default — that's what makes people install the wrong (`WelcomeIntegration`) packages.
+
 ## Architecture at a Glance
 
 | Concern | Where it happens |
@@ -61,7 +74,29 @@ services.AddDamUI();
 @using EPiServer.Cms.DamIntegration.UI.Helpers
 ```
 
-**4. Configure CMP/DAM credentials in `appsettings.json`** — the **SSO ID, Client ID, and Client Secret** from your Content Marketing Platform (CMP) account.
+**4. Configure CMP/DAM in `appsettings.json`.** Full key structure (CMS 13):
+
+```json
+"Optimizely": {
+  "Cms": {
+    "DamUI": {
+      "Endpoint": "https://cmp.optimizely.com",
+      "SsoId": "<CMP SSO ID>",
+      "NavigationUrl": "https://cmp.optimizely.com/cloud/library"
+    }
+  },
+  "Cmp": {
+    "Client": {
+      "TokenUrl": "https://accounts.cmp.optimizely.com/o/oauth2/v1/token",
+      "ApiUrl": "https://api.cmp.optimizely.com/v3/",
+      "ClientId": "<CMP Client ID>",
+      "ClientSecret": "<CMP Client Secret>"
+    }
+  }
+}
+```
+
+`SsoId`, `ClientId`, and `ClientSecret` come from the CMP account (**SSO ID** is under CMP → **Settings → Organization → General**). **Don't commit real secrets** — use per-environment config / DXP environment variables / `user-secrets` locally.
 
 **5. Select the DAM instance in the admin UI:** go to **Settings → Optimizely DAM Features**, pick your DAM instance from the drop-down, and **Save**.
 
@@ -106,6 +141,26 @@ So a plain HTML5 `<video src="…?attachment=false">` streams and seeks natively
 
 **Caveat — this is progressive download, not adaptive streaming.** There is no HLS/DASH manifest, so there's no adaptive bitrate; every viewer pulls the full-resolution file. Master files can be very large (multi-GB). For embedding, request a **web-optimized rendition** (e.g. 720p/1080p, fast-start / moov-atom-at-front) rather than the master.
 
+## Identifying an Optimizely DAM asset URL
+
+Useful when auditing whether a client already uses Optimizely DAM. A delivery URL like:
+
+```
+https://<branded-host>/download/assets/<Asset+Name>/<32-char-hex-id>?attachment=false
+```
+
+is the Optimizely **CMP/DAM** signature. Confirm with the response headers (no need to download the file — use `curl -I`):
+
+| Header | Optimizely DAM value |
+|---|---|
+| `server` | `cloudflare` |
+| `x-goog-*` (e.g. `x-goog-generation`, `x-goog-storage-class`) | present → **Google Cloud Storage** origin |
+| `content-disposition` | `inline; filename="…"` (from `?attachment=false`) |
+| `access-control-allow-origin` | `*` |
+| `content-type` | the asset MIME (e.g. `video/mp4`) |
+
+The combination — CMP `/download/assets/.../{guid}?attachment=false` URL **plus** Cloudflare-fronted **plus** GCS (`x-goog-*`) origin — is the reliable tell. Cloudflare or GCS alone is not conclusive. (A branded host like `assets.<client>.com` is just a CNAME to CMP's CDN; the host name alone proves nothing.)
+
 ## Migrating Existing Media into the DAM
 
 There is **no out-of-the-box Optimizely tool** that re-links existing references for a **first-time DAM adoption** (moving from local CMS media → DAM). Confirmed by Optimizely Support:
@@ -131,7 +186,7 @@ Recommended approach:
 
 - [Optimizely CMS DAM integration options](https://docs.developers.optimizely.com/content-management-system/v13.0.0-CMS/docs/digital-asset-management-dam) *(Jun 2026)*
 - [Configure the DAM asset picker for CMS 13](https://docs.developers.optimizely.com/content-management-system/v13.0.0-CMS/docs/configure-dam-asset-picker-cms13) *(Jun 2026)*
-- [Integrate CMP DAM with CMS for asset management](https://docs.developers.optimizely.com/content-management-system/docs/cmp-dam-in-cms) *(Jun 2026)*
+- ⚠️ [Integrate CMP DAM with CMS — **CMS 12 (legacy, `WelcomeIntegration.*`)**](https://docs.developers.optimizely.com/content-management-system/docs/cmp-dam-in-cms) — the non-versioned URL defaults to CMS 12; **do not follow this for CMS 13** *(Jun 2026)*
 - [Enable Optimizely Graph service to sync DAM and CMS](https://docs.developers.optimizely.com/digital-experience-platform/docs/enable-optimizely-graph-service) *(Jun 2026)*
 - [2026 Optimizely CMS 13 GA release notes](https://support.optimizely.com/hc/en-us/articles/44734633809037-2026-Optimizely-CMS-13-general-availability-GA-release-notes) *(Jun 2026)*
 - Optimizely Support ticket [#1902636](https://support.optimizely.com/hc/requests/1902636) — first-time DAM adoption relinking scope *(Jun 2026)*
