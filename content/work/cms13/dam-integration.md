@@ -53,18 +53,25 @@ Optimizely offers **three** DAM integration modes — only one keeps editors ful
 
 Confirmed by Optimizely Support for a CMS 13 DXP instance. Prerequisites first: a **DXP environment**, **Opti ID**, and an **active Optimizely Graph** service.
 
-**1. Add the integration NuGet package:**
+**1. Add the integration NuGet packages:**
 
 ```
 EPiServer.Cms.DamIntegration.UI
+EPiServer.Cms.UI.ContentManager   # required — see Content Manager note below
 ```
 
-**2. Register the DAM UI service:**
+> [!warning] `EPiServer.Cms.UI.ContentManager` is required but the picker doc never says so
+> The [configure-dam-asset-picker doc](https://docs.developers.optimizely.com/content-management-system/v13.0.0-CMS/docs/configure-dam-asset-picker-cms13) lists **only** `EPiServer.Cms.DamIntegration.UI` + `AddDamUI()`. That is **not enough.** The embedded DAM registers DAM assets as a **Content Manager External Source of type `graph`**, which lives in the separate **`EPiServer.Cms.UI.ContentManager`** package and is wired by **`.AddContentManager()`** (see step 2). Pin it to the same version as your other EPiServer packages (e.g. `13.1.0`). Skip it and activation fails — see [DAM feature activation fails with "'graph' is not supported as 'Type'"](#dam-feature-activation-fails-with-graph-is-not-supported-as-type).
+
+**2. Register the DAM UI service** (and the Content Manager pipeline):
 
 ```csharp
 // Startup.cs
+services.AddContentGraph().AddContentManager();  // .AddContentManager() registers the External Sources pipeline the DAM needs
 services.AddDamUI();
 ```
+
+`.AddContentManager()` chains onto the builder `AddContentGraph()` returns — no extra `using` needed. If you already call `AddContentGraph()` for site search, just append `.AddContentManager()` to it.
 
 **3. Add the import to `_ViewImports.cshtml`** (enables render helpers such as `RenderTagWithMetadata(...)`):
 
@@ -94,7 +101,7 @@ services.AddDamUI();
 }
 ```
 
-`SsoId`, `ClientId`, and `ClientSecret` come from the CMP account (**SSO ID** is under CMP → **Settings → Organization → General**). **Don't commit real secrets** — use per-environment config / DXP environment variables / `user-secrets` locally.
+`SsoId`, `ClientId`, and `ClientSecret` come from the CMP account (**SSO ID** is under CMP → **Settings → Organization → General**). **Don't commit real secrets** — use per-environment config / DXP environment variables (`Optimizely__Cmp__Client__ClientSecret`) / `user-secrets` locally. See [Creating the CMP App](#creating-the-cmp-app-to-get-clientid--clientsecret) below for where `ClientId` / `ClientSecret` come from.
 
 **5. Select the DAM instance in the admin UI:** go to **Settings → Optimizely DAM Features**, pick your DAM instance from the drop-down, and **Save**.
 
@@ -110,6 +117,38 @@ DAM assets must also be **indexed into Graph via External Sources**. Optimizely 
 > [!warning] Limitations confirmed by Support
 > - **Export/import of content carrying DAM asset references between CMS instances is not supported.** Plan content moves accordingly.
 > - **On-premises and HIPAA environments cannot use Embedded DAM** — DXP only.
+
+## Creating the CMP App (to get ClientId / ClientSecret)
+
+The `appsettings` block above needs a **`ClientId` / `ClientSecret`** pair, but the DAM-picker doc never says where they come from. They are **OAuth credentials minted by registering an app inside CMP** — the same app-registration flow used for the CMS↔CMP publishing integration. Confirmed by Optimizely Support.
+
+> [!note] You need a CMP **administrator** role
+> App/Webhook registration is an advanced setting. **Trial CMP accounts can't access it.** If you don't see **Apps and Webhooks**, you lack the admin role — get it granted before continuing.
+
+**1. Open the app registration screen** — in CMP go to **Settings → Apps and Webhooks** (or **avatar → Apps and Webhooks**).
+
+**2. Click *Register App*** and complete the form:
+
+| Field | What to enter |
+|---|---|
+| **Name** | Something descriptive, e.g. `Optimizely CMS 13 — DAM Integration` |
+| **Description** | Optional |
+| **Email exposure** | *Allow emails to be exposed in API responses* |
+| **App Role** | Choose the role appropriate to the integration |
+| **Homepage URL** | Your CMS site's public URL |
+| **Authorization Callback URL** | Same as the Homepage URL (reserved for future use) |
+
+**3. Click *Create App*.** CMP returns a **Client ID** and **Client Secret** — copy the secret now (it's typically shown only once). These map directly to:
+
+```
+Optimizely:Cmp:Client:ClientId      ← Client ID
+Optimizely:Cmp:Client:ClientSecret  ← Client Secret
+```
+
+The fixed `TokenUrl` (`https://accounts.cmp.optimizely.com/o/oauth2/v1/token`) and `ApiUrl` (`https://api.cmp.optimizely.com/v3/`) in the config are the CMP OAuth2 token endpoint and REST base — the runtime exchanges the ClientId/Secret at `TokenUrl` for a bearer token, then calls `ApiUrl`.
+
+> [!tip] Related but separate: the CMP **publishing** integration
+> The same *Register App* credentials also drive CMP's **Website, CMS & Feed** publishing integration (**Settings → Integrations → Website, CMS & Feed → Add → Optimizely CMS** → fill in the OAuth creds + public URL → toggle **Active**, then map folder aliases under the **Publishing** tab). That flow lets editors **author in CMP and publish into CMS** — it is *not* the same feature as the embedded DAM picker, so you only need it if you want CMP-authored publishing. **Heads-up:** the registration doc's non-versioned URL still says "Optimizely CMS12"; the app-registration steps themselves are identical for CMS 13.
 
 ## Editor Workflow
 
@@ -180,12 +219,38 @@ Recommended approach:
 2. Write a one-shot migration module / admin tool (see [[custom-admin-tools|Building Custom Admin Tools]]) that rewrites both typed props (`CreateWritableClone()` → set → `Save()`) and `XhtmlString`-embedded references.
 3. Log every change with `ILogger<T>` and run against a DXP integration-env clone first.
 
+## Troubleshooting
+
+### DAM feature activation fails with "'graph' is not supported as 'Type'"
+
+**Symptom.** In the editor, **Settings → Optimizely DAM Features → Activate** (Images / Videos / Documents) fails with a toast **"Feature activation failed. ('graph' is not supported as 'Type'.)"** and the browser console shows:
+
+```
+PUT /Optimizely/DamIntegration/damfeatures/Save  400 (Bad Request)
+```
+
+**Cause.** Activating a feature tells the CMS to register DAM assets as a **Content Manager External Source of type `graph`**. If the **Content Manager pipeline isn't registered**, that source type doesn't exist, so the `Save` rejects `'graph'` as an unknown `Type`. This happens when `EPiServer.Cms.UI.ContentManager` is missing and/or `.AddContentManager()` was never called — easy to hit because the asset-picker doc doesn't mention either.
+
+**Fix.**
+
+1. Add the package: `EPiServer.Cms.UI.ContentManager` (match your EPiServer version, e.g. `13.1.0`).
+2. Chain the registration in `Startup.cs`:
+   ```csharp
+   services.AddContentGraph().AddContentManager();
+   ```
+3. Rebuild and redeploy, then retry activation.
+
+> [!note] This is an app-side registration gap, not a Support/back-end issue
+> The error *looks* like the DAM↔Graph back-end isn't provisioned, but the `'graph' … Type` 400 is caused by the missing **`.AddContentManager()`** registration in your app. Confirmed by Optimizely Support on a CMS 13 DXP instance (OxyChem, Jun 2026). A separate Support-side DAM↔Graph enablement may still be needed for indexing, but it is **not** what produces this particular 400.
+
 ## Sources
 
 - [Optimizely CMS DAM integration options](https://docs.developers.optimizely.com/content-management-system/v13.0.0-CMS/docs/digital-asset-management-dam) *(Jun 2026)*
 - [Configure the DAM asset picker for CMS 13](https://docs.developers.optimizely.com/content-management-system/v13.0.0-CMS/docs/configure-dam-asset-picker-cms13) *(Jun 2026)*
 - ⚠️ [Integrate CMP DAM with CMS — **CMS 12 (legacy, `WelcomeIntegration.*`)**](https://docs.developers.optimizely.com/content-management-system/docs/cmp-dam-in-cms) — the non-versioned URL defaults to CMS 12; **do not follow this for CMS 13** *(Jun 2026)*
+- [CMS + CMP publishing integration — *Create an app in CMP*](https://docs.developers.optimizely.com/content-management-system/docs/cms-cmp-publishing-integration#create-an-app-in-cmp) — the canonical *Register App* steps that mint the `ClientId` / `ClientSecret` (sent by Optimizely Support for the OxyChem integration) *(Jun 2026)*
 - [Enable Optimizely Graph service to sync DAM and CMS](https://docs.developers.optimizely.com/digital-experience-platform/docs/enable-optimizely-graph-service) *(Jun 2026)*
 - [2026 Optimizely CMS 13 GA release notes](https://support.optimizely.com/hc/en-us/articles/44734633809037-2026-Optimizely-CMS-13-general-availability-GA-release-notes) *(Jun 2026)*
 - Optimizely Support ticket [#1902636](https://support.optimizely.com/hc/requests/1902636) — first-time DAM adoption relinking scope *(Jun 2026)*
 - Optimizely Support — Embedded DAM enablement steps for CMS 13 DXP *(Jun 2026)*
+- Optimizely Support — `EPiServer.Cms.UI.ContentManager` + `AddContentGraph().AddContentManager()` required to fix the DAM feature-activation `'graph' is not supported as 'Type'` 400 (OxyChem, Jun 2026)
