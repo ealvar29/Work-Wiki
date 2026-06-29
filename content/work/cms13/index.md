@@ -21,6 +21,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 
 - [[cms13-refresher|CMS 13 Refresher — Crash Course]] — the from-scratch confidence-builder: mental model, what changed, how upgrades run, deployment gotchas, and a self-test
 - [[cms13-flashcards|CMS 13 Flashcards]] — click-to-flip active-recall cards for daily bite-size study
+- [[cms13-demo-guide|CMS 13 Demo Runbook]] — presenter's script for a live demo: CMS 12→13 talk track + click-by-click sequence (Visual Builder, Blueprints, Opal, Graph) with timeboxes and fallbacks
 - [[world-tour-2026-briefing|CMS 13 World Tour 2026 — Team Briefing]] — distilled takeaways from the May 2026 accreditation event: upgrade path, new features, gotchas, deployment models
 - [[upgrade-accelerator|CMS 13 Upgrade Accelerator]] — phase-by-phase workflow, client readiness checklist, Claude branch setup, go/no-go criteria
 - [[world-tour-2026|CMS 13 World Tour 2026 Notes]] — full technical accreditation notes: Visual Builder, Opal, Graph, OCP, DAM, upgrade path, breaking changes
