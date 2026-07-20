@@ -62,6 +62,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 
 - [[translations|Translations & Localization]]
 - [[debugging-dxp|Debugging in DXP]]
+- [[optimizely-opal|Optimizely Opal — Install & Troubleshooting]] — the in-editor AI assistant: 2-package install, config, Admin Center connection, the CSP `wss://` gotcha, Graph-indexing dependency, and a field-tested troubleshooting table
 - [[ai-assistant|AI Assistant v4]]
 - [[geo-analytics|GEO Analytics]] — AI crawler traffic dashboard; track which AI agents index your site and whether crawls become referrals (PaaS only)
 
