@@ -61,6 +61,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 ## Operations
 
 - [[translations|Translations & Localization]]
+- [[opti-id-admin-center|Opti ID & the Admin Center]] — adding projects/instances, granting access, roles, and the Super-Admin invitation deadlock; note the PaaS Portal isn't on Opti ID yet
 - [[debugging-dxp|Debugging in DXP]]
 - [[optimizely-opal|Optimizely Opal — Install & Troubleshooting]] — the in-editor AI assistant: 2-package install, config, Admin Center connection, the CSP `wss://` gotcha, Graph-indexing dependency, and a field-tested troubleshooting table
 - [[ai-assistant|AI Assistant v4]]
