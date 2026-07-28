@@ -27,9 +27,8 @@ tags:
 
 | Feature | Status | Details |
 |---|---|---|
-| CMS 12 → 13 upgrade | Planning | Branch: `CMS-13-UpgradePath` — blocked on EPiServer.Forms CMS 13 |
+| CMS 12 → 13 upgrade | Deferred | Branch: `CMS-13-UpgradePath`. oxy.com stays on CMS 12 for now — see note below |
 | Spanish (es-CL) expansion | Planning | [[automated-translation\|Automated Translation Service]] — awaiting client sign-off |
-| OxyChem (new instance) | Discovery | Brand new CMS 13 greenfield site — separate from oxy.com |
 
 ## Upgrade Notes
 
@@ -42,7 +41,8 @@ See the full upgrade guide on the `CMS-13-UpgradePath` branch: `UPGRADE-CMS13.md
 
 **Head start:** ContentGraph 3.14.3 is installed — but note that's the **CMS 12** package; the CMS 13 migration target is the renamed `Optimizely.Graph.Cms` 13.0.2 (see [[cms13/graph-sdk|Graph SDK]]).
 
-> **⚠️ Flag for review (June 2026):** the OxyChem workstream below is listed as a *"brand new CMS 13 greenfield site,"* but the actual OxyChem repo (`Oxy.Com.Web`, branch `OxyChem-CMS-13-Upgrade`) is a **CMS 12 → 13 upgrade** of an existing codebase (Find removed, net6→net10, ~180 files fixed), not greenfield, and it is **largely complete** — build clean, Forms/Graph/AdvancedReviews wired. Confirm whether oxy.com and OxyChem are separate engagements and update this section accordingly.
+> [!important] OxyChem is a **separate engagement** — see [[work/clients/oxychem/index|OxyChem]]
+> The two projects were split into independent engagements with separate DXP projects and roadmaps. **oxy.com stays on CMS 12 for now**; OxyChem has already completed its CMS 12 → 13 upgrade — an in-place upgrade of a live site — and is the source of most of the CMS 13 guidance on this wiki. Findings from the two projects should not be read across without checking.
 
 ## Known Quirks
 

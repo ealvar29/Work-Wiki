@@ -10,7 +10,8 @@ Active client projects at Jaxon Digital. Each client page covers tech stack, act
 
 ## Active Clients
 
-- [[oxy/index|Oxy (Occidental Petroleum)]] — CMS 12 → 13 upgrade + Spanish (es-CL) expansion
-- [[vhb/index|VHB]] — CMS 12 → 13 upgrade, Find → Graph
-- [[christie/index|Christie Digital]] — CMS 12 → 13 + Commerce 14 → 15, most complex (67 page types)
-- [[cambro/index|Cambro]] — CMS 12 → 13 upgrade, dual search stack (Find + NEST/Elasticsearch)
+- [[work/clients/oxychem/index|OxyChem (Occidental Chemical)]] — CMS 12 → 13 upgrade **complete**, in UAT; our CMS 13 reference implementation
+- [[work/clients/oxy/index|Oxy (Occidental Petroleum)]] — separate engagement from OxyChem; staying on CMS 12 for now, Spanish (es-CL) expansion
+- [[work/clients/vhb/index|VHB]] — CMS 12 → 13 upgrade, Find → Graph
+- [[work/clients/christie/index|Christie Digital]] — CMS 12 → 13 + Commerce 14 → 15, most complex (67 page types)
+- [[work/clients/cambro/index|Cambro]] — CMS 12 → 13 upgrade, dual search stack (Find + NEST/Elasticsearch)
