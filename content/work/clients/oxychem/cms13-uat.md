@@ -27,7 +27,7 @@ Jira epic: **OX-23** — *Upgrading OxyChem to CMS 13*.
 |---|---|
 | Environment under test | Integration |
 | Public site URL | *(fill in)* |
-| Editor URL | *(Integration host)* **`/ui/CMS/`** — trailing slash required |
+| Editor URL | *(Integration host)* **`/ui/cms`** — case-insensitive, trailing slash optional |
 | CMS 12 baseline | the live production site |
 | Content vintage | Integration restored from a production bacpac — record the date |
 
@@ -89,7 +89,7 @@ Unblocked by the role work, so this can run in parallel with it.
 
 Framework, package, and config work. Their only proof is that the site boots and renders, which Wave 1 covers implicitly. Two are worth a **note** to the client rather than a test ticket:
 
-- **OX-33** — the editor URL changed to `/ui/CMS/`. Tell them, or you will burn a support round-trip on a 404 that reads as a login failure.
+- **OX-33** — the editor URL changed to `/ui/cms`. Tell them, or you will burn a support round-trip on a redirect-to-home that reads as a login failure. `/Optimizely/CMS/` and `/EPiServer/CMS/` do **not** work here.
 - **OX-31 / OX-37** — their observable results are folded into OX-49 and OX-51 respectively.
 
 ## Multi-site scope — decide before starting

@@ -78,7 +78,7 @@ CMS 13 introduces Content Variations — multiple published versions of the same
 The CMS admin URL changed — update any bookmarks or documentation:
 
 - CMS 12: `/EPiServer/CMS`
-- CMS 13: `/Optimizely/CMS`
+- CMS 13: `/Optimizely/CMS` — or `/ui/cms` on Shell 13.1.x / Opti ID
 
 All module URLs follow the same `/EPiServer/` → `/Optimizely/` pattern.
 

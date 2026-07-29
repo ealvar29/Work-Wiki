@@ -258,10 +258,12 @@ there). Your deployed app is on the slot.
 
 - The on-page **quick-navigator "Opti" edit button was removed in CMS 13**
   (`RenderEPiServerQuickNavigatorAsync` is gone). Don't wait for a floating button on the
-  front end — navigate to the editor by URL. **In CMS 13 the editor moved from `/episerver`
-  to `/Optimizely`**: use **`/Optimizely/CMS/`** (or `/Optimizely`). Hitting `/episerver`
-  now falls through to content routing and renders the site's **custom 404** — a giveaway
-  you're on the old path.
+  front end — navigate to the editor by URL. **The editor path moved in CMS 13, and again on
+  Shell 13.1.x**: `/episerver/cms/` → `/Optimizely/CMS/` → **`/ui/cms`**. Read the Shell module
+  registration in your startup log (`ShellModule Name='Shell' RouteBasePath='ui/'`) — that
+  prefix is authoritative. A stale path falls through to content routing and renders the site's
+  **custom 404** (or silently redirects to the home page) — the giveaway you're on the old path,
+  and the reason this so often gets misdiagnosed as a login failure.
 - If `/util/login` authenticates but the CMS won't open, check: (a) the account is in a
   CMS edit role (e.g. `WebAdmins`/`Administrators` per the site's role mappings); (b) the
   app's **default auth scheme**. Sites that set `AddAuthentication(Saml2Defaults.Scheme)`
@@ -280,7 +282,7 @@ there). Your deployed app is on the slot.
 - [ ] When a slot 503s, read the **App Service console-log blob** for the real exception — not the deployment log
 - [ ] After boot, harden views against null `LoadContent()` from orphaned content refs
 - [ ] **Complete** the deployment to go live (slot → live); verify on `?x-ms-routing-name=slot` first
-- [ ] Editor is at `/Optimizely/CMS/` in CMS 13 (not `/episerver`); no on-page Opti button; confirm login account has a CMS role
+- [ ] Editor loads at the Shell `RouteBasePath` — `/Optimizely/CMS/`, or `/ui/cms` on Shell 13.1.x / Opti ID (not `/episerver`); no on-page Opti button; confirm login account has a CMS role
 - [ ] After go-live: fix host bindings in admin if needed, then run Graph re-index
 - [ ] Don't trust a green pipeline — confirm the slot serves 200
 

@@ -50,7 +50,9 @@ Built-in A/B testing at the content level — create variations of a page or blo
 
 ### The Editor URL Changed
 
-Small thing, huge gotcha. The CMS editor moved from `/episerver/cms/` to `/Optimizely/CMS/`. The old URL returns a hard 404 — no redirect. If you have monitoring health checks, bookmarks, or redirect rules pointing at the old URL, update them.
+Small thing, huge gotcha. The CMS editor moved from `/episerver/cms/` to `/Optimizely/CMS/` — and then moved *again* on Shell 13.1.x, to `/ui/cms`. The old URLs return a hard 404 or silently redirect to your home page; neither redirects you to the right place, and both look convincingly like a broken login.
+
+Don't trust any doc on this, including this one. Your startup log prints the answer: `ShellModule Name='Shell' RouteBasePath='ui/'`. That prefix is authoritative for your build. And if you have monitoring health checks, bookmarks, or redirect rules pointing at an old path, update them.
 
 ---
 

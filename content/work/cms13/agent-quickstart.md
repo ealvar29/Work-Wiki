@@ -19,7 +19,7 @@ You are upgrading an Optimizely CMS 12 site to CMS 13. The platform changes are 
 - **.NET 6 → .NET 10** (target framework change in `.csproj`)
 - **EPiServer.Find removed entirely** — no CMS 13 version exists. Replacement is the Optimizely Graph SDK, which **does** have a CMS 13 build — but under **renamed packages**: `Optimizely.Graph.Cms` + `Optimizely.Graph.Cms.Query` (the old `Optimizely.ContentGraph.Cms` is CMS 12 only). See G10.
 - **EPiServer.Forms — CMS 13 build shipped** (6.0.0). Earlier guidance to exclude all Forms files is **obsolete**; install `EPiServer.Forms` 6.0.0 and call `services.AddForms()`. *(Verified live on OxyChem, June 2026.)*
-- **Editor URL changed**: `/episerver/cms/` → `/Optimizely/CMS/` (hard 404, no redirect)
+- **Editor URL changed**: `/episerver/cms/` → `/Optimizely/CMS/` → **`/ui/cms`** on Shell 13.1.x / Opti ID (hard 404 or a redirect home, never a redirect to the right place — see the table below)
 - **Several EPiServer APIs removed** — not deprecated, removed. Compile errors are your roadmap.
 
 The upgrade has three distinct phases: get it to compile → get it to boot → post-compile cleanup. Do not mix phases.
@@ -66,7 +66,7 @@ dotnet build --no-incremental 2>&1 | Select-String "error"
 13. Fix `IBlockingFirstRequestInitializer` registration for any first-request initializers
 14. Verify frontend build output reaches `wwwroot/` (often needs an MSBuild copy target)
 15. Create `App_Data/blobs/` directory if it doesn't exist (local FileBlob provider needs it)
-16. Run with `ASPNETCORE_ENVIRONMENT=Development` — verify home page 200, login at `/util/login`, editor at `/Optimizely/CMS/`
+16. Run with `ASPNETCORE_ENVIRONMENT=Development` — verify home page 200, login at `/util/login`, editor at the Shell `RouteBasePath` from your startup log (`/Optimizely/CMS/`, or **`/ui/cms`** on Shell 13.1.x). Under Opti ID `/util/login` is dead — the editor path itself issues the OIDC challenge.
 
 ### Phase 3 — Post-Compile (separate PRs)
 
@@ -228,7 +228,7 @@ Keep an `ISearchService` abstraction and back it with a real `ContentGraphSearch
 | `PageData.Ancestors()` | `_contentLoader.GetAncestors(page.ContentLink)` | Was an EPiServer.Find extension |
 | `ContentArea.FilteredItems` | `ContentArea.Items` | Deprecated → use Items |
 | `ContentReference.GetContent()` | `_contentLoader.Get<T>(contentReference)` | Extension removed |
-| `/episerver/cms/` | `/Optimizely/CMS/` | Hard 404, no redirect |
+| `/episerver/cms/` | `/Optimizely/CMS/`, or **`/ui/cms`** on Shell 13.1.x / Opti ID | Hard 404 or silent redirect to home — read `RouteBasePath` from the Shell module startup log to be sure |
 | `IServiceLocator` interface | Constructor DI / `ServiceLocator.Current` static | Interface removed; static wrapper survives |
 
 ---
@@ -242,7 +242,7 @@ Before calling Phase 1 done:
 Before calling Phase 2 done:
 - [ ] Home page returns 200
 - [ ] `/util/login` works, login succeeds
-- [ ] `/Optimizely/CMS/` loads the editor (not 404)
+- [ ] The editor loads (not 404) at the Shell `RouteBasePath` — `/Optimizely/CMS/`, or `/ui/cms` on Shell 13.1.x / Opti ID
 - [ ] Create a test page in the editor — no "Unable to create page" error
 - [ ] Upload an image in the editor — no errors
 - [ ] `App_Data/blobs/` directory exists (local dev only)

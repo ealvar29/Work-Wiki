@@ -140,7 +140,7 @@ contentTypeRepository.Save(writableType);
 ## Step 9 — Setup Application in Admin UI
 
 After your first successful startup:
-1. Navigate to `/Optimizely/CMS`
+1. Navigate to the editor — `/Optimizely/CMS`, or **`/ui/cms`** on Shell 13.1.x / Opti ID (confirm from the Shell module `RouteBasePath` in your startup log)
 2. Go to **Settings → Applications**
 3. Delete the default "Headless" application
 4. Create a new **In Process** application

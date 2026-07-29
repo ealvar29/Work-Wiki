@@ -34,7 +34,7 @@ Then put up the comparison table and move on — don't dwell.
 | AI | Add-on | **Opal** + OpalChat in-editor | AI authoring & translation |
 | Editor UI customization | Dojo | **ES6 modules** | Modern JS, no Dojo |
 | Starter template | Alloy | **Stride** | New baseline |
-| Admin URL | `/EPiServer/CMS` | `/Optimizely/CMS` | Update bookmarks |
+| Admin URL | `/EPiServer/CMS` | `/Optimizely/CMS` — or `/ui/cms` on Shell 13.1.x / Opti ID | Update bookmarks |
 
 MVC is **still fully supported** — say this out loud, it's the question everyone asks. Deep dive: [[cms13-refresher|CMS 13 Refresher]] · [[what-is-cms13|What is CMS 13?]]
 

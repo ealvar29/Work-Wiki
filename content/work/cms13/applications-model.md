@@ -61,7 +61,7 @@ Prior to Preview 4, the workaround was `_applicationResolver.GetByContextAsync()
 
 After upgrading, you'll hit a 404 on the site. Fix it in the admin UI:
 
-1. Navigate to `/Optimizely/CMS` (note: URL prefix changed from `/EPiServer`)
+1. Navigate to the editor — `/Optimizely/CMS` (prefix changed from `/EPiServer`), or **`/ui/cms`** on Shell 13.1.x / Opti ID
 2. Go to **Settings → Applications**
 3. Delete the default "Headless" application that was auto-created
 4. Create a new **In Process** application

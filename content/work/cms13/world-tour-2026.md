@@ -38,7 +38,7 @@ Everything else (Visual Builder, DAM, Opal) is additive once these are in place.
 | AI | Add-on | Opal (included) |
 | DAM integration | DAM asset picker | Embedded DAM via Opti-ID |
 | Integrations | Custom / separate | OCP (Connect Platform) |
-| Admin URL | `/EPiServer/CMS` | `/Optimizely/CMS` |
+| Admin URL | `/EPiServer/CMS` | `/Optimizely/CMS` (`/ui/cms` on Shell 13.1.x / Opti ID) |
 
 ---
 

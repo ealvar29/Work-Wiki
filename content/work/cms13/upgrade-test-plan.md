@@ -39,10 +39,23 @@ Integration is not "done deploying" just because the slot is green. Confirm thes
 |---|---|---|---|---|
 | S1 | App responds on the Integration URL | Home page returns 200, renders | [J] | |
 | S2 | Boot logs clean | No startup exceptions, no assembly-scanner crash | [J] | |
-| S3 | Editor loads at `/Optimizely/CMS` | Editor UI renders, no console errors | [J] | |
+| S3 | Editor loads (see note below) | Editor UI renders, no console errors | [J] | |
 | S4 | An editor can log in | Auth succeeds (Opti ID/SAML or fallback) | [J+C] | |
 | S5 | Create + publish a test page | Page saves, publishes, renders on front-end | [J] | |
 | S6 | Search returns results | A known query returns ≥1 result (proves Graph index) | [J] | |
+
+> [!warning] S3 — check the editor URL for *your* build before calling it a failure
+> The editor path has moved twice, and hitting the wrong one returns a bare 404 (or a redirect to the home page) that reads exactly like a broken login. Don't debug auth until you've confirmed the path.
+>
+> | Build | Editor path |
+> |---|---|
+> | CMS 12 | `/episerver/cms/` |
+> | CMS 13, earlier Shell | `/Optimizely/CMS/` |
+> | CMS 13 + Shell 13.1.x / Opti ID | **`/ui/cms`** |
+>
+> **Determine it authoritatively from your own app:** the startup log emits the Shell module registration, e.g. `ShellModule Name='Shell' RouteBasePath='ui/'`. That prefix *is* the answer — trust it over any doc, including this one.
+>
+> Verified on OxyChem (CMS 13.1.0 + Opti ID, 2026-07-29): `/ui/cms` and `/ui/CMS/` both 302 to the Opti ID login — the path is **case-insensitive and the trailing slash is optional**. `/Optimizely/CMS/`, `/EPiServer/CMS/` and `/ui/` alone all redirect to the site home instead. Note the editor deep-links with a fragment, e.g. `/ui/cms#context=epi.cms.contentdata:///13135`.
 
 If any Smoke Gate row fails, stop and fix before proceeding. Everything below assumes S1–S6 are green.
 
