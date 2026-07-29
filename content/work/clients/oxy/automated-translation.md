@@ -170,4 +170,4 @@ void OnPublishedContent(object sender, ContentEventArgs e)
 ## Related
 
 - [[index\|Oxy Client Profile]]
-- [[cms13/translations\|Translations & Localization (CMS 13)]]
+- [[work/cms13/translations\|Translations & Localization (CMS 13)]]

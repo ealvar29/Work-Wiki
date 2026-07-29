@@ -37,13 +37,13 @@ See the full upgrade guide on the `Christie-CMS13-Upgrade` branch: `CMS13-Upgrad
 
 **De-risked since May 2026 (proven on the OxyChem CMS 13.0.2 upgrade — June 2026):**
 - ✅ **EPiServer.Forms** — 6.0.0 ships and works (`AddForms()`). No longer a blocker.
-- ✅ **Find → Graph** — the CMS 13 Graph SDK is real and wired end-to-end on OxyChem (renamed packages + dual DI registration + `ContentGraphSearchService`). The migration is well-trodden now — see [[cms13/graph-sdk|Graph SDK]] and [[cms13/post-upgrade-gotchas|Post-Upgrade Gotchas]].
+- ✅ **Find → Graph** — the CMS 13 Graph SDK is real and wired end-to-end on OxyChem (renamed packages + dual DI registration + `ContentGraphSearchService`). The migration is well-trodden now — see [[work/cms13/graph-sdk|Graph SDK]] and [[work/cms13/post-upgrade-gotchas|Post-Upgrade Gotchas]].
 - ✅ **Advanced.CMS.AdvancedReviews** — 2.0.0 ships for CMS 13.
 
 **Remaining hard blockers:**
 - Optimizely LanguageManager — CMS 13 version unconfirmed; verify before estimating the localization workstream
 - Commerce 14 → 15 — separate major version upgrade running in parallel (CMS 13 is not compatible with Commerce 14)
-- Geta.Sitemaps / EnvironmentSynchronizer — still no CMS 13 release (see [[cms13/agent-quickstart|Vendor Status]])
+- Geta.Sitemaps / EnvironmentSynchronizer — still no CMS 13 release (see [[work/cms13/agent-quickstart|Vendor Status]])
 
 **Scale:** Christie is the most complex client engagement — **67 page types, 47 block types**. Breaking change surface area is significantly higher than other clients.
 
@@ -57,8 +57,8 @@ See the full upgrade guide on the `Christie-CMS13-Upgrade` branch: `CMS13-Upgrad
 
 ## Related Wiki Pages
 
-- [[cms13/upgrade-accelerator|CMS 13 Upgrade Accelerator]]
-- [[cms13/search-to-graph|Search & Navigation → Graph Migration]]
-- [[cms13/breaking-changes|Breaking Changes Catalog]]
-- [[cms13/translations|Translations & Localization]]
-- [[cms13/upgrade-checklist|Upgrade Checklist]]
+- [[work/cms13/upgrade-accelerator|CMS 13 Upgrade Accelerator]]
+- [[work/cms13/search-to-graph|Search & Navigation → Graph Migration]]
+- [[work/cms13/breaking-changes|Breaking Changes Catalog]]
+- [[work/cms13/translations|Translations & Localization]]
+- [[work/cms13/upgrade-checklist|Upgrade Checklist]]

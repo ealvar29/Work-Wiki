@@ -39,7 +39,7 @@ See the full upgrade guide on the `CMS-13-UpgradePath` branch: `UPGRADE-CMS13.md
 - Opti ID — must be provisioned via DXP portal before go-live
 - SAML2 package rename required (`Sustainsys.Saml2.AspNetCore2` → `Sustainsys.Saml2.AspNetCore`)
 
-**Head start:** ContentGraph 3.14.3 is installed — but note that's the **CMS 12** package; the CMS 13 migration target is the renamed `Optimizely.Graph.Cms` 13.0.2 (see [[cms13/graph-sdk|Graph SDK]]).
+**Head start:** ContentGraph 3.14.3 is installed — but note that's the **CMS 12** package; the CMS 13 migration target is the renamed `Optimizely.Graph.Cms` 13.0.2 (see [[work/cms13/graph-sdk|Graph SDK]]).
 
 > [!important] OxyChem is a **separate engagement** — see [[work/clients/oxychem/index|OxyChem]]
 > The two projects were split into independent engagements with separate DXP projects and roadmaps. **oxy.com stays on CMS 12 for now**; OxyChem has already completed its CMS 12 → 13 upgrade — an in-place upgrade of a live site — and is the source of most of the CMS 13 guidance on this wiki. Findings from the two projects should not be read across without checking.
@@ -52,7 +52,7 @@ See the full upgrade guide on the `CMS-13-UpgradePath` branch: `UPGRADE-CMS13.md
 
 ## Related Wiki Pages
 
-- [[cms13/upgrade-accelerator|CMS 13 Upgrade Accelerator]]
-- [[cms13/search-to-graph|Search & Navigation → Graph Migration]]
-- [[cms13/translations|Translations & Localization]]
-- [[cms13/debugging-dxp|Debugging in DXP]]
+- [[work/cms13/upgrade-accelerator|CMS 13 Upgrade Accelerator]]
+- [[work/cms13/search-to-graph|Search & Navigation → Graph Migration]]
+- [[work/cms13/translations|Translations & Localization]]
+- [[work/cms13/debugging-dxp|Debugging in DXP]]

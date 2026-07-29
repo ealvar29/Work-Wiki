@@ -10,9 +10,9 @@ tags:
   - uat
 ---
 
-The OxyChem-specific instance of the generic [[work/cms13/upgrade-test-plan|Integration Test Plan]]. It answers one question the generic plan can't: **of the tickets sitting in Ready for QA, which ones can the client actually test, and in what order?**
+The OxyChem-specific instance of the generic [[work/cms13/upgrade-test-plan|Integration Test Plan]]. It answers one question the generic plan can't: **of everything we built, what can the client actually test, and in what order?**
 
-Jira epic: **OX-23** — *Upgrading OxyChem to CMS 13*.
+Jira: **OX-61** *CMS 13 QA & UAT* (the testing epic) · **OX-23** *Upgrading OxyChem to CMS 13* (the delivery epic).
 
 > [!note] Hostnames deliberately omitted
 > This wiki is public. Integration hostnames, portal links, and account names stay out of it — fill them into the environment block below in your working copy, or keep them in the ticket.
@@ -29,15 +29,22 @@ Jira epic: **OX-23** — *Upgrading OxyChem to CMS 13*.
 | Public site URL | *(fill in)* |
 | Editor URL | *(Integration host)* **`/ui/cms`** — case-insensitive, trailing slash optional |
 | CMS 12 baseline | the live production site |
-| Content vintage | Integration restored from a production bacpac — record the date |
+| Content vintage | Restored from a production backup taken **13 April 2026** — content published after that date is absent (stated on every client ticket) |
 
 ## Blocking prerequisite — editor role provisioning
 
 **Do not send any editor-facing ticket until this is resolved.**
 
-`CmsEditors` grants **Read only** on this site. Real edit and publish rights live on custom departmental roles (`OxyComEditors`, `OxyComPublishers`, and siblings), and Opti ID auto-maps only the built-in `CmsEditors`/`CmsAdmins`. A client tester handed a plain Opti ID account will be read-only, and every row in sections 2, 3, 6 and 7 will fail for the wrong reason.
+`CmsEditors` grants **Read only** on this site. Real edit and publish rights live on custom departmental roles (`OxyComEditors`, `OxyComPublishers`, and siblings), and Opti ID auto-maps only the built-in `CmsEditors`/`CmsAdmins`. A client tester handed a plain Opti ID account will be read-only, and every editorial check fails for the wrong reason.
 
 Resolve by either granting the client's test account `CmsAdmins`, or completing the Okta/Entra group-name → Oxy role mapping so the custom roles arrive in the `groups` claim. See [[work/clients/oxychem/index#Known Quirks & Debt|Known Quirks]].
+
+> [!warning] Optimizely ACLs are additive — there is no "deny"
+> Effective permission is the **union** of every entry matching the user: their username, every role they hold, and `Everyone`. Adding a per-user row with only *Read* **grants** Read; it revokes nothing. You restrict someone by removing them from the roles that grant more, not by adding a narrower row.
+>
+> Observed live (2026-07-29): a test account with a per-user Read-only entry and only *Content Editors* in Admin Center could still edit and publish. Diagnose in this order: **stale session first** (claims are baked into the auth cookie at sign-in — a role change does nothing until re-login), then which branch was actually edited, then inheritance from ancestors, then what Opti ID is really emitting in the token.
+>
+> A genuinely read-only user = *Content Editors* in Admin Center (needed just to open the editor) **+ membership only in a Read-level role**. Never *Content Admins* — that resolves to `CmsAdmins`, full control, and overrides everything.
 
 ## Baseline capture — do this before UAT starts
 
@@ -59,42 +66,57 @@ That last row is what pays for the exercise. Without a baseline you chase a defe
 
 ---
 
-## Wave 1 — send now (public site, no editor login required)
+## The tickets
 
-Unblocked by the role work, so this can run in parallel with it.
+QA lives in its own epic (**OX-61**), separate from the upgrade epic OX-23, so OX-23 can close on delivery while testing and remediation track independently.
 
-| Ticket | What the client tests | Plan section |
-|---|---|---|
-| **OX-51** Content Graph job + search | Site search parity against production. Highest-value client test — search was fully replaced. | §4 (G1–G8) |
-| **OX-49** Blob migration | Images and PDFs render on pages; downloads resolve. | §6 (M1, M5) |
-| **OX-58** Contact form styling | Contact form renders correctly on the site. | §5 |
-| **OX-39** Forms *(public half)* | Existing forms render, submit, validate, confirm. | §7 (FO1–FO4) |
-| **OX-40** Sitemaps *(if client owns SEO)* | `sitemap.xml` and `robots.txt` correct. | §10 (R3) |
-| **OX-36** Frontend build *(optional)* | Site fully styled, no broken or unstyled pages. Really a visual regression sweep. | §5 (F1, F5) |
+### Client-facing — written for OxyChem to work through directly
 
-## Wave 2 — after the role grant lands (editor-facing)
+Plain language, self-contained, no codes or cross-references, **no links to this wiki**. Written to the rules in [[work/cms13/upgrade-test-plan#Turning this into client tickets|Turning this into client tickets]]. If you edit them, keep them that way.
 
-| Ticket | What the client tests | Notes |
-|---|---|---|
-| **OX-44** Opti ID auth | *Their* editors logging in with MFA. | Still in development. **Send this first** — everything below depends on it. Only Jaxon has completed the round-trip so far. |
-| **OX-56** Opal AI | In-editor chat, Opal tools, AI translation in the Add Language dialog. | Opti ID-gated by design. Needs org subscription, credits, and the CMS instance connected in Admin Center. See [[work/cms13/optimizely-opal\|Opal]]. |
-| **OX-52** DAM | Asset picker browse / select / insert; assets deliver via CDN. | Working as of the last check. |
-| **OX-42** AdvancedReviews | Create a review link, comment, approve. | Genuine stakeholder-workflow test. |
-| **OX-41** ContentTypeIcons | Icons render in the editor page tree. | Cosmetic, low value, but visually verifiable. |
-| **OX-39** Forms *(editor half)* | Build a new form; read submissions in admin. | §7 (FO5) |
+| Ticket | Title the client sees | Covers | Login needed |
+|---|---|---|---|
+| **OX-66** | QA: Site search | Search parity vs the live site | No |
+| **OX-67** | QA: Page layout and appearance | Every page type renders; nav, mobile, browsers | No |
+| **OX-69** | QA: Website forms | Render, submit, delivery, validation | Partly |
+| **OX-72** | QA: Page addresses, 404 page and SEO | URL parity, 404, sitemap | No |
+| **OX-68** | QA: Images, documents and downloads | Media, PDFs, DAM picker | Partly |
+| **OX-65** | QA: Creating and editing content in the CMS | Full editorial pass | Yes |
 
-## Jaxon-only — no client-observable surface
+Login-gated checks sit under an explicit *"don't attempt this yet"* heading. Remove it when the account is ready.
 
-`OX-24` · `OX-25` · `OX-26` · `OX-27` · `OX-28` · `OX-29` · `OX-30` · `OX-31` · `OX-32` · `OX-33` · `OX-34` · `OX-35` · `OX-37` · `OX-38` · `OX-43` · `OX-45` · `OX-46`
+### Jaxon-only
 
-Framework, package, and config work. Their only proof is that the site boots and renders, which Wave 1 covers implicitly. Two are worth a **note** to the client rather than a test ticket:
+**OX-62** baseline capture · **OX-63** smoke gate · **OX-64** authentication and access · **OX-70** scheduled jobs · **OX-71** integrations and APIs · **OX-73** multi-site · **OX-74** performance.
 
-- **OX-33** — the editor URL changed to `/ui/cms`. Tell them, or you will burn a support round-trip on a redirect-to-home that reads as a login failure. `/Optimizely/CMS/` and `/EPiServer/CMS/` do **not** work here.
-- **OX-31 / OX-37** — their observable results are folded into OX-49 and OX-51 respectively.
+These keep the plan's shorthand. Not for the client.
+
+### Order
+
+1. **OX-62** — capture the live-site search baseline. OX-66 can't be judged without it.
+2. **OX-63** — smoke gate, 100% green before the client is invited in.
+3. **No-login client tickets** — OX-66, OX-67, OX-72, plus the public halves of OX-68 and OX-69.
+4. **Everything login-gated** — blocked on the access gate above.
+
+## Implementation tickets are not QA tickets
+
+The ~28 stories under OX-23 are indexed by *what changed*; regression risk is indexed by *what could break*. Around 17 of them (framework, package and config work) have **no client-observable surface at all** — verify and close those internally. Routing them to the client teaches them to rubber-stamp.
+
+Two are worth a **note** rather than a ticket:
+
+- **OX-33** — the editor URL is now `/ui/cms`. Tell them up front, or lose a support round-trip to a redirect-to-home that reads exactly like a login failure. `/Optimizely/CMS/` and `/EPiServer/CMS/` do **not** work here.
+- **OX-31 / OX-37** — their observable results are folded into OX-68 and OX-66.
+
+## Known items already disclosed to the client
+
+Both are in the tickets, phrased for a business reader, with an explicit "don't report this":
+
+- **Automatic redirects are off** pending the NotFoundHandler upgrade (**OX-75**) — flagged in OX-72 as a skip-for-now.
+- **Publish pop-up error** — same root cause; content saves regardless — flagged in OX-65.
 
 ## Multi-site scope — decide before starting
 
-OxyChem is a multi-site solution (six site definitions on Integration). Decide explicitly whether UAT covers all sites or the main one only. It changes how much baseline capture is needed and whether §11 (ML1–ML4) is in scope. Leaving it undecided is how a secondary site ships untested.
+OxyChem is a multi-site solution (six site definitions on Integration). Decide explicitly whether UAT covers all sites or the main one only. It changes how much baseline capture is needed and whether the multi-site section is in scope. Leaving it undecided is how a secondary site ships untested.
 
 ## Sign-off
 

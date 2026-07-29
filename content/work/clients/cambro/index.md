@@ -45,8 +45,8 @@ See the full upgrade guide on the `CAMI-CMS13-Upgrade` branch: `CMS13_UPGRADE.md
 
 ## Related Wiki Pages
 
-- [[cms13/upgrade-accelerator|CMS 13 Upgrade Accelerator]]
-- [[cms13/search-to-graph|Search & Navigation → Graph Migration]]
-- [[cms13/breaking-changes|Breaking Changes Catalog]]
-- [[cms13/translations|Translations & Localization]]
-- [[cms13/upgrade-checklist|Upgrade Checklist]]
+- [[work/cms13/upgrade-accelerator|CMS 13 Upgrade Accelerator]]
+- [[work/cms13/search-to-graph|Search & Navigation → Graph Migration]]
+- [[work/cms13/breaking-changes|Breaking Changes Catalog]]
+- [[work/cms13/translations|Translations & Localization]]
+- [[work/cms13/upgrade-checklist|Upgrade Checklist]]
