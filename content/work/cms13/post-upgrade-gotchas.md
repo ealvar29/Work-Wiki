@@ -303,6 +303,115 @@ services.AddScoped<ISearchService, ContentGraphSearchService>();
 
 ---
 
+### Inline Blocks Silently Stop Rendering — `GetContent()` Became `LoadContent()`
+
+**Symptom.** Blocks an editor creates *for this page* (inline blocks, rather than picking an existing shared block) don't appear on the published page. Existing pages are fine, so it looks like an editor error. Depending on your guards it presents as either a hard 500 on the whole page, or the block silently missing with nothing in the log.
+
+**Root cause.** If you have a custom `ContentAreaRenderer`, check how it resolves the item. CMS 12:
+
+```csharp
+IContent content = contentAreaItem.GetContent();       // handles linked AND inline
+```
+
+`GetContent()` doesn't exist in CMS 13 — it's `ContentAreaItemExtensions.LoadContent()`. The trap is that **`LoadContent()` returns `IContentData`, not `IContent`**, because an inline block has no content identity. Faced with that compile error it's tempting to write:
+
+```csharp
+IContent content = _contentLoader.Get<IContent>(contentAreaItem.ContentLink);   // WRONG
+```
+
+That compiles and works for every *linked* block, so it passes casual testing. But an inline block is stored inside the ContentArea's own XML and has **no ContentLink and no ContentGuid at all**:
+
+```xml
+<div data-contentgroup="" data-inlineblockname="404 Hero" data-inlineblocktypeid="57" />
+```
+
+`Get<T>` throws `ArgumentNullException` on a null link, so one inline block fails the entire page.
+
+**Fix.** Use `LoadContent()` and widen the local variable. `ContentRenderingScope`, `ResolveContentTemplate` and `RenderContentData` all accept `IContentData` in CMS 13, so nothing downstream needs changing:
+
+```csharp
+IContentData content = contentAreaItem.LoadContent();
+if (content == null) { /* log and skip */ return; }
+```
+
+**How to spot it fast.** Query the ContentArea property value. If it contains `data-inlineblockname` and no `data-contentguid`, it's an inline block. On one site exactly **one** content item used inline blocks — restored production content is all linked — which is why this survives until an editor creates something new. That makes it a UAT-blocker rather than a launch-blocker, and it will be found by your client, not by you.
+
+### A Null ContentLink Turns Every 404 Into a 500
+
+**Symptom.** A large fraction of your 500s are requests for files that don't exist — `.js.map`, `.css.map`, favicons. In one 3-hour window on Integration, **152 of 175 500s** were ordinary source-map 404s.
+
+**Root cause.** Custom error pages usually have a ContentArea. So: request 404s → the error page re-executes → its ContentArea throws (see the inline-block gotcha above, or any block-level exception) → the 404 comes back as a 500. One bad item on the error page escalates *every* 404 on the site.
+
+**Fix.** Two parts. Guard the item resolution, and — more importantly — **don't let one block's exception fail the page**:
+
+```csharp
+try   { htmlHelper.RenderContentData(content, true, templateModel, _contentRenderer); }
+catch (Exception ex) { Logger.Error($"block skipped to keep the page alive: {ex.Message}", ex); }
+```
+
+A missing block plus a loud `Error` line is strictly better for a visitor than a 500, and the bug stays fully visible in logs. **Log the skip.** Silently swallowing is what turns a ten-minute diagnosis into a day: an editor sees the block in edit mode, it's absent on the page, and nothing anywhere says why.
+
+### AutoMapper: Casting a Block to `IContent` Fails on `_DynamicProxy`
+
+**Symptom.**
+
+```
+AutoMapper.AutoMapperMappingException: Error mapping types.
+Mapping types: B3SmallHeroBlock -> B3SmallHeroBlockViewModel
+Destination Member: BlockId
+ ---> System.InvalidCastException: Unable to cast object of type
+      'B3SmallHeroBlock_DynamicProxy' to type 'EPiServer.Core.IContent'.
+```
+
+**Root cause.** A common pattern for deriving an anchor id:
+
+```csharp
+CreateMap<StandardBlockBase, BlockViewModelBase>()
+    .IncludeAllDerived()
+    .ForMember(m => m.BlockId, o => o.MapFrom(s => ((IContent)s).ContentLink.ID.ToString()));
+```
+
+The unchecked cast fails for proxied blocks and for inline blocks (`BlockData`, not `IContent`). `.IncludeAllDerived()` means it applies to **every** block type, so it's not a niche failure.
+
+**Fix.** Use `as` and guard. Note AutoMapper's expression-tree overload **cannot contain an `is` pattern** (`CS8122`) — use the delegate overload:
+
+```csharp
+.ForMember(m => m.BlockId, o => o.MapFrom((source, _) =>
+{
+    var content = source as IContent;
+    return content != null && !ContentReference.IsNullOrEmpty(content.ContentLink)
+        ? content.ContentLink.ID.ToString()
+        : string.Empty;
+}));
+```
+
+**Ordering trap.** This defect can be *masked* by the inline-block bug above. While the renderer skips inline blocks, the mapper is never reached. Fix the renderer and this immediately starts throwing — so fix both in the same change, or your "fix" will look like a regression.
+
+### EPiServer Forms: The "Content-Type" Exception Message Changed
+
+**Symptom.** Bot traffic POSTing to arbitrary paths with no body produces:
+
+```
+System.InvalidOperationException: This request does not have a Content-Type header.
+Forms are available from requests with bodies like POSTs and a form Content-Type of
+either application/x-www-form-urlencoded or multipart/form-data.
+   at Microsoft.AspNetCore.Http.Features.FormFeature.ReadForm()
+   at EPiServer.Forms.Controllers.FormContainerBlockController.IsCurrentFormSubmitting(...)
+```
+
+A form block in a site-wide footer renders on every page **and every error page**, so this cascades: the error page re-renders the same block and you get `An exception was thrown attempting to execute the error handler`.
+
+**Root cause + fix.** If you ported a guard from CMS 12, its string match is probably stale. CMS 12 matched `"Incorrect Content-Type"`; CMS 13 / .NET 10 emits `"does not have a Content-Type header"`. Match both:
+
+```csharp
+exception is AntiforgeryValidationException
+  || (exception is InvalidOperationException
+      && (exception.Message.Contains("Incorrect Content-Type", StringComparison.OrdinalIgnoreCase)
+       || exception.Message.Contains("does not have a Content-Type header", StringComparison.OrdinalIgnoreCase)))
+```
+
+Worth checking your CMS 12 codebase for guards like this before you port. Two separate protections in one file were dropped in one upgrade because the porter hit a compile error and reached for the nearest thing that built.
+
 ## Tooling
 
 ### Visual Studio 2022 Requires Version 17.13+ for .NET 10

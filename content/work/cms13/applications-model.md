@@ -90,6 +90,75 @@ This also affects static asset folders if you use the multi-site NuGet plugin:
 | `SiteDefinition.Id` (GUID) | `Application.Name` (immutable string) |
 | Sync resolution APIs | All async |
 
+## Where It Actually Lives in the Database
+
+The API change is only half the story. **The storage moved too, and the legacy tables are still there and still populated with stale data.** This is the single most expensive trap in the whole model, because every instinct says to go look at `tblSiteDefinition`.
+
+| Purpose | CMS 13 table | Legacy table (STALE — do not trust) |
+| --- | --- | --- |
+| The site/application | `tblApplication` | `tblSiteDefinition` |
+| Hostnames | **`tblApplicationHost`** | `tblHostDefinition` |
+| URL formats | `tblApplicationUrlFormat` | — |
+| Sync bookkeeping | `tblSynchedApplication` | — |
+
+`tblApplicationHost` columns: `pkID`, `fkApplicationID`, **`Authority`** (the hostname), **`Type`**, `Locale`, `UseSecureConnection`, `PreferredUrlScheme`.
+
+`Type` is the host role — `1` is **Primary** (used for canonical/absolute URL generation), `0` is a secondary/default alias. Get this wrong and you get malformed absolute URLs sitewide.
+
+### Why this matters more than it sounds
+
+On a CMS 13 site that had been upgraded and was serving traffic correctly:
+
+- `tblHostDefinition` contained only **production** hostnames — no trace of the environment's actual hostname.
+- `tblApplicationHost` contained the real, correct config.
+- The CMS admin UI (Applications → hostnames) reads the **new** tables.
+
+So reading the legacy tables produced a confident, completely wrong conclusion ("the environment's hostname isn't registered"). Worse: **writing** to the legacy tables to "fix" routing had **no effect at all**, which then looked like a deeper platform bug rather than an edit to a dead table.
+
+**Rule: on CMS 13, query `tblApplication` / `tblApplicationHost`. Treat `tblSiteDefinition` and `tblHostDefinition` as archaeology.**
+
+### Application names are synthetic — `Site_<GUID>`
+
+`tblApplication.Name` holds values like:
+
+```
+Site_0E96B85F_3A5A_4C59_AD6A_6C42FE661899
+```
+
+That's the old site GUID with hyphens replaced by underscores. `DisplayName` carries the human name ("OxyChem"). You'll see the synthetic form in admin URLs and in anything enumerating applications.
+
+Two consequences:
+
+1. **Any code or addon matching sites by friendly name or by `Guid` will silently match nothing.** The legacy `ISiteDefinitionRepository.List()` shim returns `SiteDefinition.Id == Guid.Empty` with these synthetic names, so `Guid`-based lookups fail without error.
+2. **Environment-config addons can become silent no-ops.** `Addon.Episerver.EnvironmentSynchronizer` (2.0.1) matches sites by `Id` through that shim and writes to the legacy tables. On CMS 13 it logs `SiteDefinitionSynchronizer initialized` and then does **nothing** — no error, no warning. If you rely on it to apply per-environment hostnames and `SiteUrl`, **your host config is unmanaged on every environment**, and you'll discover it at promotion.
+
+### Diagnostic queries
+
+```sql
+-- The real host config. Type 1 = Primary.
+SELECT a.pkID, a.Name, a.DisplayName, h.Authority, h.Type, h.UseSecureConnection
+FROM tblApplication a
+LEFT JOIN tblApplicationHost h ON h.fkApplicationID = a.pkID
+ORDER BY a.pkID, h.Type;
+
+-- Is the legacy table lying to you? Compare before trusting anything you read there.
+SELECT s.Name, s.StartPage, s.SiteUrl, h.Name AS host, h.Type
+FROM tblSiteDefinition s LEFT JOIN tblHostDefinition h ON h.fkSiteID = s.pkID;
+```
+
+### A real bug this caused
+
+An image failed CSP with:
+
+```
+Loading the image 'https://www.occo01mstrk7b35inte.dxcloud.episerver.net/siteassets/…'
+violates the following Content Security Policy directive: "img-src blob: 'self' …"
+```
+
+Absolute URL, wrong host, so `'self'` didn't match. It looked like a CSP policy gap. It wasn't: one application's **Primary** (`Type = 1`) host in `tblApplicationHost` was set to the **DXP slot hostname with a stray `www.` prefix**. Absolute-URL generation used it whenever site context was ambiguous. Pure config error, fixable in the admin UI with no deploy — but only findable in the right table.
+
+Check `Type = 1` rows across all applications after any upgrade or environment clone. A slot hostname (`*.dxcloud.episerver.net`) should never be a Primary host.
+
 ## Sources
 
 - [Mark Stott — Working With Applications in Optimizely CMS 13](https://world.optimizely.com/blogs/mark-stott/dates/2026/1/working-with-applications-in-optimizely-cms-13/) *(Jan 2026)*

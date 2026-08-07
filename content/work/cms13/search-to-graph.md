@@ -123,6 +123,222 @@ Because the Graph schema change is breaking, in-place deployment on DXP can caus
 
 See [[upgrade-checklist|Upgrade Checklist]] for the full DXP migration steps.
 
+## Parity gaps: what Find did that Graph does not (field-verified)
+
+**Read this before you tell a client search will be "the same or better."** Find's behaviour came from explicit indexing conventions. Graph's defaults are not equivalent, and if you port the *query* without porting the *conventions*, search silently returns far less than before. Verified end-to-end on the OxyChem upgrade, 2026-08.
+
+### 1. Graph indexing is opt-in — the default is NOT searchable
+
+A property contributes to `_fulltext` **only when explicitly marked searchable**. `GraphIndexingMode` (`Optimizely.Graph.Cms.ContentTypes.Models`):
+
+| Mode | Retrievable | Filterable (`where`) | Full-text searchable |
+|---|---|---|---|
+| `None` | — | — | — |
+| `Default` | ✅ | ✅ | ❌ |
+| `Queryable` | ✅ | ✅ | ❌ |
+| `Searchable` | ✅ | ✅ | ✅ |
+
+**Where the control is:** Admin → **Settings → Content Types → *[type]* → *[property]* → "Property Indexing Type"**. It is a **dropdown**, not a checkbox — the docs describe a "Searchable property checkbox", which is the CMS SaaS UI. Self-hosted CMS 13 shows a dropdown with the four `GraphIndexingMode` values, and it renders whether or not Find is installed. Default is `Default`, i.e. **not searchable**.
+
+Find's model was the **inverse**: index everything serialisable, then exclude specific types. So a straight port leaves you with an index containing content-item *names* and nothing else. Symptom: a word plainly visible on a page matches **zero** pages.
+
+```
+_Page match "feedstock"   ->  0     # word is in a text block on the page
+_Content match "feedstock" -> 12    # all PDFs — Graph extracts file text natively
+```
+
+The block is indexed, but its `_fulltext` is just its own name:
+
+```json
+{"displayName":"Chlor-Alkali C9 Intro","types":["C9TextBlock","_Component",...],
+ "_fulltext":["Chlor-Alkali C9 Intro"]}
+```
+
+Its text is retrievable (`Text { html }` returns the copy) but **not searchable**. Retrievable ≠ searchable — that distinction is the whole trap.
+
+### 2. ContentArea flattening — the indexing mode IS the equivalent
+
+Find serialised block content **into the parent page's indexed document**:
+
+```csharp
+SearchClient.Instance.Conventions.ForInstancesOf<ContentArea>()
+    .ModifyContract(x => x.Converter = new MaxDepthContentAreaConverter(4));
+```
+
+That single convention is why a page was findable by copy living in its blocks.
+
+**Graph's equivalent is the per-property indexing mode, and it cascades — verified.** Setting one block property (`C9TextBlock.Text`) to `Searchable` and running a Full Synchronization propagated its text into every **parent page's** `_fulltext`:
+
+```
+                      before   after
+_Page      "feedstock"    0   ->   2
+_Component "feedstock"    0   ->   4
+```
+
+```json
+// the PAGE's _fulltext afterwards
+["Chlor-Alkali C9 Intro",
+ "<h2>OxyChem is a leading producer of chlor-alkali products</h2>\n<p>Chlor-alkali chemicals serve as critical feedstock…</p>",
+ "Chlor-Alkali C15 Accordion", ...]
+```
+
+So there is **no separate ContentArea configuration to find** — mark the block properties searchable and parent pages become findable by their block copy. No support ticket required.
+
+**Test to run early on any Find→Graph migration:** pick a distinctive phrase from a text block and query `_Page` for it. If it returns 0, your properties are still at `Default`.
+
+**Two things to know about the resulting `_fulltext`:**
+- Entries arrive as **raw HTML** (`<h2>…</h2>\n<p>…</p>`) — strip tags and decode entities before display. CMS 12 ran `WebUtility.HtmlDecode` over `hit.Excerpt` for the same reason.
+- **Content-item names are in there too** (`"Chlor-Alkali C9 Intro"`). Find indexed names as well so it isn't a regression, but any snippet builder must skip them — keeping only entries containing HTML tags is a workable heuristic.
+
+### 3. Graph has no excerpt or highlight API
+
+Find produced result descriptions from `hit.Excerpt` — server-side, **query-aware** (the snippet centres on the matched terms):
+
+```csharp
+Description = WebUtility.HtmlDecode(hit.Excerpt),
+```
+
+Graph has no equivalent. Snippets must be synthesised client-side, and a naive "join the indexed text and truncate" is **not** the same thing — it always shows the start of the page rather than the matched region.
+
+### 4. No UnifiedSearch — pages and files are separate roots
+
+Find's `UnifiedSearchRegistry` gave one ranked list across pages and media with a single `TotalMatching`. In Graph you query `_Page` / `_Media` (or `_Content`) and reconcile yourself. **Watch the total:** taking it from the pages query alone means a document-heavy site reports `total: 0` while rendering file results — the UI says "no results" over a populated list.
+
+### 5. Site scoping: use `_metadata.url.base`, never `url.default`
+
+One Graph index serves every site on the instance, and **there is no site filter by default** — so each site's search returns every other site's content until you add one.
+
+- `url.base` is **one distinct value per site** — the reliable discriminator.
+- `url.default` is **relative for pages** (`/chlor-alkali/`) but **absolute for media** (`https://host/siteassets/…`) — filtering on it silently drops every page.
+- Media carries `url.base` too, so files scope the same way.
+
+Derive the base from the request (`scheme://host`) rather than `SiteDefinition` — on CMS 13 `ISiteDefinitionRepository.List()` returns `Guid.Empty` with synthetic names.
+
+### 6. Field-path filters take TWO steps (this one compiles and fails silently)
+
+The concrete filter classes are `internal`, and the typed model can't reach metadata paths (`ContentItemMetadata.Url` is a flattened `string` with no `base` member). So field-path filters are the only route — and they need both halves:
+
+```csharp
+// WRONG — compiles, then returns zero results for every query
+Filters.FilterEquals("_metadata.url.base", value)
+
+// RIGHT
+Filters.FilterEquals("_metadata.url.base", value).GetFilter("_metadata.url.base")
+```
+
+`Filters.FilterX(...)` returns a `DelegateFilterBuilder` — a filter still waiting for a field name. Its **first argument is the expression-marker slot and is ignored** when called directly; the second is the value; `.GetFilter(path)` binds the field. Because the builder converts implicitly to `GraphFilter`, the compiler accepts the broken form. The resulting exception is typically swallowed by a `catch` into an empty result set — indistinguishable from "no matches."
+
+### Diagnostic queries
+
+Go to the Graph gateway directly — the app layer can't tell you whether the fault is the query, the index, or the CMS config.
+
+```bash
+K="<singlekey>"; G="https://cg.optimizely.com/content/v2?auth=$K"
+q(){ curl -s -X POST "$G" -H 'Content-Type: application/json' -d "{\"query\":\"$1\"}"; echo; }
+
+q '{ _Page(limit:0){ total } }'                       # free count, no items
+q '{ __type(name:"ContentMetadata"){ fields{ name } } }'   # what metadata exists
+
+# THE query that finds cross-site leakage — distinct site bases with counts
+q '{ _Page(limit:0){ facets{ _metadata{ url{ base(limit:30){ name count } } } } } }'
+
+# "is my content in pages, or in media?" — catches the searchability gap
+q '{ _Content(where:{_fulltext:{match:"yourterm"}}, limit:6){ items{ _metadata{ displayName types } } } }'
+```
+
+Facets are the highest-value tool: effectively `SELECT value, COUNT(*) GROUP BY value` in one request.
+
+### 7. Find's `ISearchable` opt-in has no Graph equivalent — you must reimplement it
+
+Find had a registry of searchable types:
+
+```csharp
+searchClient.Conventions.UnifiedSearchRegistry.Add<ISearchable>();
+```
+
+Graph has nothing equivalent — it indexes what you tell it to index and returns whatever matches. So the type filter has to move into **your** result mapping. The tempting version is wrong:
+
+```csharp
+case BasePage pageItem when !pageItem.HideFromSearch:      // every page type qualifies
+```
+
+That's wider than Find was. On a multi-site instance it surfaced twelve vanity-redirect stub pages (each a `HomePage` under root) as results whose link was `/` — dead hits, reported immediately in client QA. Restore the opt-in:
+
+```csharp
+case BasePage pageItem when pageItem is ISearchable && !pageItem.HideFromSearch:
+```
+
+**Check the CMS 12 source before you do this, not after.** The marker interface set is easy to get wrong from memory — verify which page types actually declared it, because dropping a type that Find *did* index is a silent recall regression that QA will read as "search is broken".
+
+### 8. Filtering at display time breaks `total` and pagination
+
+Directly following from #7: if you drop hits in your result mapper, `total` still comes from Graph's **pre-filter** count. You get:
+
+```json
+{"total":3,"hasMore":true,"results":[ /* 2 items */ ]}
+```
+
+Inflated counts, and pagination pages that render short or empty. Either **exclude the types in the Graph query itself**, or decrement `total` as you drop hits. Don't filter in the projection and report Graph's count.
+
+### 9. Indexing flags are database state — they do not promote
+
+The `Property Indexing Type` you set per property (Admin → Content Types) is stored in **`tblPropertyDefinition`**. That means it is **per-environment**. Flag 42 properties on Integration, promote code to Preproduction, and Preproduction has none of them — search silently under-returns and nothing in the deployment tells you.
+
+Add it to your promotion checklist explicitly, alongside "run a full Graph synchronization". Consider scripting it rather than clicking 42 dropdowns three times.
+
+### 10. Autosuggest costs two data stores per keystroke
+
+Find served typeahead from its own index in one hop. The natural Graph port does this per call:
+
+```csharp
+.QueryContent<PageData>()...      // Graph round trip, then materialises CMS content from the DB
+_urlResolver.GetUrl(x.ContentLink) // …and a URL resolve per suggestion
+```
+
+Measured against the CMS 12 original on the same content: **~0.54s vs ~0.32s per suggestion call**, roughly 1.7×. The results endpoint itself was at parity (0.150s vs 0.155s) — it's the typeahead that regresses, and users read a laggy dropdown as "search is slow".
+
+Mitigations, in order of value:
+
+1. **Project, don't materialise** — return title + URL from Graph's `_metadata.url`, rather than loading content and resolving a URL per hit.
+2. Audit the controller for dead work. A real example computed a page load, a start-page tree walk and a URL resolve **into a variable that was never used**, on every keystroke.
+3. Check the client debounce interval (250–300ms at this latency).
+4. Remove sync-over-async (`.Result`, `GetAwaiter().GetResult()`) from the request path before go-live — a concurrency risk rather than a latency one.
+
+**Measure the endpoints separately before believing a "search is slow" report.** Time the document, the JS bundle, the results POST and the suggestions POST independently. In one investigation the results path was *faster* than production and only the typeahead had regressed — the opposite of the initial diagnosis.
+
+### 11. Content that can't be read can't be indexed
+
+Obvious in hindsight, easy to miss: if a property fails to deserialize (see the `PropertyList` gotchas), its text never reaches `_fulltext` either. A recall measurement taken while a content-loading bug is open will understate your parity, and you'll chase a search problem that is actually a property problem. Fix content loading **before** you benchmark recall.
+
+### Sequencing advice
+
+1. **Capture a CMS 12 baseline before migrating** — ~20 representative queries with result counts and top hits per site. Without it you cannot tell a ranking difference from a missing page, and "search parity" is unfalsifiable at sign-off.
+2. **Port the conventions, not just the query.** Enumerate every `IndexInitialization`-style convention on the CMS 12 side and decide its Graph equivalent explicitly.
+3. Any indexing/convention change requires a **Graph Full Synchronization** — *"content types and content data are not resynced automatically when conventions change."*
+4. **Where the setting lives matters.** Admin → Settings → Content Types writes to `tblPropertyDefinition` — **database state, per environment**. It does not travel from Integration to Production and is not version-controlled. A code route could not be confirmed in 13.x (the 13.1 assemblies expose `GraphIndexingMode` and `GraphPropertyDefinition` but **no `GraphPropertyAttribute`**), so budget per-environment reconfiguration as a cutover step until proven otherwise.
+5. Reproduce Find's deliberate **exclusions**. Flipping every string property searchable will surface CSS class names, anchor names and aria labels in results.
+
+### Scoping the property sweep
+
+Because the indexing mode cascades from block to parent page, the work is "flag each content-bearing property," not "find a ContentArea setting." On a mid-sized site expect **40–60 properties** across 30–40 content types — tedious but bounded.
+
+A workable triage:
+
+| Flag `Searchable` | Leave `Default` |
+|---|---|
+| Rich-text body properties (`Text`, `Content`, `Body`, `Description`) | UI microcopy — "no results" tips, results messages, wizard/auth copy |
+| Headlines and section titles | Footnotes, notes, disclaimers — high volume, low relevance, dilutes snippets |
+| Table and accordion body copy *(unless excluded on CMS 12)* | Presentation/config strings — CSS class modifiers, anchor names, aria labels |
+| Media `Description` fields | Social/SEO fields — OpenGraph, Twitter card, email-share subject/body |
+
+Enumerate candidates from the models rather than clicking through admin:
+
+```bash
+grep -rn 'virtual XhtmlString' --include=*.cs Logic/Models | sort
+```
+
+Then reconcile against the CMS 12 `IndexInitialization` exclusions before flagging anything.
+
 ## Sources
 
 - [Robert Svallin — CMS 13 Preview 3: Key Changes](https://world.optimizely.com/blogs/robert-svallin/dates/2026/2/cms-13-preview-3-key-changes/) *(Feb 2026)*
@@ -130,3 +346,7 @@ See [[upgrade-checklist|Upgrade Checklist]] for the full DXP migration steps.
 - [Official Docs — CMS 12 vs CMS 13 Graph Comparison](https://docs.developers.optimizely.com/content-management-system/v13.0.0-CMS/docs/cms-13-and-12-graph-comparison)
 - [Daniel Halse — Graph Access with JS and Fetch](https://world.optimizely.com/blogs/daniel-halse/dates/2026/2/graph-access-with-only-js-and-fetch) *(Feb 2026)*
 - [Gosso — Technical Q&A for CMS 13](https://www.optimizely.blog/2026/03/technical-qa-for-cms-13/) *(Mar 2026)*
+- [Official Docs — Indexing Conventions for Optimizely Graph (CMS 13)](https://docs.developers.optimizely.com/content-management-system/v13.0.0-CMS/docs/indexing-conventions)
+- [Official Docs — Full-Text Search in Optimizely Graph: Match, Contains, Searchable Fields](https://docs.developers.optimizely.com/platform-optimizely/docs/full-text-search)
+- [Nguyen Nguyen — Optimizely Graph indexing modes for CMS Content properties](https://world.optimizely.com/blogs/nguyen-nguyen/dates/2024/3/exclude-cms-content-properties-from-being-indexed-in-optimizely-graph/)
+- Parity gaps section: field-verified on the OxyChem CMS 13 upgrade, 2026-08. Full detail incl. the CMS 12 reference conventions in that repo at `UpgradePlan/search-parity-cms12-to-cms13.md`.
