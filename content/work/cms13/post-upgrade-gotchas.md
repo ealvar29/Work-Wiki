@@ -351,6 +351,32 @@ catch (Exception ex) { Logger.Error($"block skipped to keep the page alive: {ex.
 
 A missing block plus a loud `Error` line is strictly better for a visitor than a 500, and the bug stays fully visible in logs. **Log the skip.** Silently swallowing is what turns a ten-minute diagnosis into a day: an editor sees the block in edit mode, it's absent on the page, and nothing anywhere says why.
 
+**The block guard is not the whole fix — check your layout's view components too.** After applying the above, missing *media* paths (`/siteassets/nope.jpg`, `/globalassets/`) still returned 500 while missing *pages* correctly returned 404. Different code path entirely, and nothing in the ContentArea:
+
+```csharp
+// the common broken shape, repeated in three separate components
+ContentReference link = _pageRouteHelper.ContentLink;
+if (ContentReference.IsNullOrEmpty(link))
+    return Content(String.Empty);          // guards the LINK...
+
+var currentPage = _pageRouteHelper.Page;
+var vm = new PageViewModel<BasePage>(currentPage as BasePage);  // ...but not the PAGE, or the cast
+```
+
+A media request routes with a **non-empty ContentLink** whose resolved `Page` is not a `BasePage`, so `as BasePage` yields null and the view model's constructor dereferences it. Because these components render from `_Layout`, that `NullReferenceException` also kills the error handler — you get `An exception was thrown attempting to execute the error handler` and a hard 500 instead of the 404 the request deserved.
+
+Audit **every** component your layout invokes. On one site three of four were affected (metadata, header, footer); the fourth already guarded correctly. Guard the resolved page, not the link:
+
+```csharp
+var currentPage = _pageRouteHelper.Page as BasePage;
+if (currentPage is null)
+    return Content(String.Empty);   // a non-page route has no page metadata to render
+```
+
+Two related traps in the same components: a **hard cast** `(BasePage)currentPage` fails louder but just as fatally, and helper methods ending in `FirstOrDefault()` can return null into an AutoMapper call further down. Guard both.
+
+**Diagnostic order that works:** compare a missing *page* against a missing *media* path. If pages 404 and media 500s, the fault is in the layout, not the ContentArea — and grepping the log for the originating frame (`…ViewModel..ctor`, `…Component.Invoke`) names the file directly.
+
 ### AutoMapper: Casting a Block to `IContent` Fails on `_DynamicProxy`
 
 **Symptom.**
@@ -411,6 +437,74 @@ exception is AntiforgeryValidationException
 ```
 
 Worth checking your CMS 12 codebase for guards like this before you port. Two separate protections in one file were dropped in one upgrade because the porter hit a compile error and reached for the nearest thing that built.
+
+### `PropertyList<T>` Silently Returns an Empty List — And Optimizely's Own Advice Is Stale
+
+**Symptom.** Every instance of a custom `PropertyList<T>` property renders **zero entries**, on pages where production shows many. In the editor the collection appears empty while sibling properties on the same block are populated, and adding an entry then publishing fails `[Required]` validation. So the round trip is broken in **both** directions.
+
+The critical detail: **there is no exception anywhere.** No log line, no error, nothing. `PropertyData.IsNull` comes back `true` and the list is empty. Four separate deploys can find nothing, because there is nothing to find.
+
+**The content is not lost.** Check the database before considering a re-import — the stored JSON is intact, camelCase, with rich text written as a bare HTML string:
+
+```json
+[{"label":"Chlorine","column1Text":"<p>Chlorine is one of the most abundant…</p>"}]
+```
+
+**Root cause.** On CMS 13, `PropertyList<T>` hydrates with **System.Text.Json**, not Newtonsoft. `XhtmlString` has no parameterless constructor and no string coercion, so STJ cannot materialise one, the element fails, and the **entire list** comes back empty.
+
+**⚠️ Optimizely support will tell you the opposite.** Asked directly, support advised that `PropertyList<T>` calls `Newtonsoft.Json.JsonConvert` directly and that "System.Text.Json converters are never used at all." **That guidance comes from a CMS 11 KB article and does not hold on CMS 13.** Acting on it produces a converter that is silently ignored. If you search for this, search for *"PropertyList custom JsonConverter"* rather than *"CMS 13 breaking change"* — it reads like a long-standing constraint and the CMS 11 material dominates the results.
+
+**Fix.** A System.Text.Json converter applied **as a member attribute** on each complex member:
+
+```csharp
+using StjJsonConverter = System.Text.Json.Serialization.JsonConverterAttribute;
+
+public class AccordionEntry
+{
+    public virtual string Label { get; set; }
+
+    [StjJsonConverter(typeof(XhtmlStringSystemTextJsonConverter))]
+    public virtual XhtmlString Column1Text { get; set; }
+}
+```
+
+```csharp
+public sealed class XhtmlStringSystemTextJsonConverter : JsonConverter<XhtmlString?>
+{
+    public override XhtmlString? Read(ref Utf8JsonReader reader, Type t, JsonSerializerOptions o)
+    {
+        if (reader.TokenType == JsonTokenType.Null) return null;
+        var html = reader.GetString();
+        return string.IsNullOrEmpty(html) ? null : new XhtmlString(html);
+    }
+
+    public override void Write(Utf8JsonWriter writer, XhtmlString? value, JsonSerializerOptions o)
+        => writer.WriteStringValue(value?.ToInternalString());   // storage form, not ToHtmlString
+}
+```
+
+Three things that each cost a deploy:
+
+- **Member attribute, not global registration.** A converter registered in serializer options is never consulted here. This is the single distinction that matters, and it is why an STJ converter can be "already tried" and still be the answer.
+- **`ToInternalString()` on write**, not `ToHtmlString()`. The latter requires an `IPrincipal`, renders for display, and will not round-trip.
+- **`ParseItem` / `ParseToSelf` are not on the hydration path.** Overriding them produces zero log lines — a genuine negative, easily misread as "my code isn't deployed."
+
+Keep a Newtonsoft attribute alongside the STJ one if you like; which serializer the platform reaches for has changed across versions and carrying both costs nothing.
+
+**Only complex members break.** Measured on the same codebase: an entry type with `ContentReference` hydrated fine; entry types with only `string` members hydrated fine. `XhtmlString` was the one that failed. Optimizely also call out `Url` and `PageReference` as candidates — verify rather than assume.
+
+**The diagnostic that isolates this in one request — use a control.** Find a `PropertyList<T>` in the same solution whose item type has **only simple members**, and load both through `IContentLoader`:
+
+| Entry type | Members | Entries hydrated |
+|---|---|---|
+| `StatEntry` | all `string` | 4 of 4 ✅ |
+| `AccordionEntry` | has `XhtmlString` | 0 ❌ |
+
+That single comparison kills "`PropertyList` is broken on CMS 13" and pins it to the member type. Without the control you are guessing at a mechanism with a 20-minute feedback loop.
+
+**Run it locally, not through deploys.** A restored copy of the environment's database plus a `Development`-gated diagnostic endpoint that loads content via `IContentLoader` and reports `.Count` / `IsNull` turns a 20-minute deploy cycle into a sub-second one. It also sidesteps editor login and routing entirely. A standalone reflection harness over `PropertyList<T>` is **not** worth building — `ParseToSelf` and `LoadData` both throw on an unattached property instance, which looks like a finding but is an artifact of the harness.
+
+**Search impact.** A property that cannot be read never reaches `_fulltext` either — see [[work/cms13/search-to-graph|Search & Navigation → Graph Migration]]. Fix content loading before you benchmark search recall.
 
 ## Tooling
 

@@ -308,7 +308,9 @@ Mitigations, in order of value:
 
 ### 11. Content that can't be read can't be indexed
 
-Obvious in hindsight, easy to miss: if a property fails to deserialize (see the `PropertyList` gotchas), its text never reaches `_fulltext` either. A recall measurement taken while a content-loading bug is open will understate your parity, and you'll chase a search problem that is actually a property problem. Fix content loading **before** you benchmark recall.
+Obvious in hindsight, easy to miss: if a property fails to deserialize — see [[work/cms13/post-upgrade-gotchas|`PropertyList<T>` Silently Returns an Empty List]] — its text never reaches `_fulltext` either. A recall measurement taken while a content-loading bug is open will understate your parity, and you'll chase a search problem that is actually a property problem. Fix content loading **before** you benchmark recall.
+
+Note the failure is **silent in both places**: the property returns an empty list with no exception, and the index simply lacks the text. Nothing anywhere says "this content could not be read." If recall is short and you cannot explain why, load a sample of the affected pages through `IContentLoader` and check the collection properties are actually populated before you touch the search code.
 
 ### Sequencing advice
 
