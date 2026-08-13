@@ -90,9 +90,52 @@ In PowerShell, `ConvertFrom-Json` turns an ISO string like `"…T11:48:46Z"` int
 
 Parse the raw string with `AssumeUniversal | AdjustToUniversal`. **Sanity check:** each line's hour should match its `h=NN` file partition.
 
+## The deployment API cannot answer historical questions
+
+Worth knowing before you build an investigation on it, because it fails by returning *plausible* data rather than an error.
+
+- **`list_deployments` returns only the ~10 most recent deployments, and paging is silently broken.** Passing `offset: 10` can return a **byte-identical payload** to `offset: 0`. So a project deploying several times a week exposes roughly the last fortnight, and any question about last month gets an answer that looks complete and isn't.
+- **Passing `environmentSlot` can return "No deployments found"** even when deployments exist. Omit it and filter client-side.
+- **`db_export` has no list endpoint** — the list call returns HTTP 405. You can ask for the *latest* export status, but you cannot enumerate history.
+- **Check what the deployment records actually contain before inferring from them.** A code-package upload carries `isPackageUpload: true` and `sourceEnvironment: null`, with no `includeDb` / `includeBlob` flags anywhere. If every record looks like that, no content movement is recorded — but that is *absence of evidence*, not evidence of absence, because a portal-driven "Copy content" action may never appear in deployment history at all.
+
+**Practical rule:** the deployment API tells you what happened recently. For anything older, or for content movement, go to the content database.
+
+## Dating a content snapshot when nothing recorded it
+
+A recurring question on upgrade projects: *when was this environment's content copied from production?* It matters, because every "this page is missing" report is either a genuine migration defect or simply content authored after the snapshot — and you cannot tell which without the date. Frequently nobody wrote it down.
+
+If the deployment API is empty (see above) and there's no `.bacpac` in storage, the content database will tell you itself.
+
+**The technique.** Any environment where scheduled jobs run leaves a heartbeat in `tblScheduledItemLog`. Restore a snapshot into a different environment and you import the **source's** heartbeat, then begin writing your **own** — so the copy shows up as a discontinuity you can read straight off:
+
+```sql
+-- job executions per day; look for the cliff
+SELECT CAST([Exec] AS date) AS d, COUNT(*) AS runs
+FROM tblScheduledItemLog
+GROUP BY CAST([Exec] AS date)
+ORDER BY d DESC;
+```
+
+On one project this showed 81–134 executions/day across three servers, continuous, then **60 days of complete silence**, then a resumption with a totally different shape — sparse, one execution per server, a new container ID nearly every time. That second pattern is a dev environment being redeployed, not a live site. The last dense day is the source system's final beat; the first sparse day is the target's first.
+
+Corroborate with content timestamps:
+
+```sql
+SELECT CAST(Saved AS date) AS d, COUNT(*) FROM tblContent
+GROUP BY CAST(Saved AS date) ORDER BY d DESC;
+```
+
+**Two schema gotchas.** `Exec` is a **T-SQL reserved word** — bracket it or the query won't parse. And **CMS 13 has no `tblContentVersion`**; use `tblContent.Saved`.
+
+**Bound it from both ends.** The job-log gap gives a *lower* bound (when the source stopped) but not the restore moment, which could be anywhere in the silence. Pair it with an *upper* bound from outside the database: fetch production's `sitemap.xml`, and for every URL that 200s on production but 404s on the restored environment, read its `<lastmod>`. Each one must have been created after the snapshot, so the **earliest** such `lastmod` caps it. On the project above this collapsed a 60-day window to about three days.
+
+**The generalisable point:** a deployment record describes an *operation*, and if nobody performed that operation through the audited path, there is nothing to find. The content database keeps a clock for its own reasons. When an audit API comes back empty, look for a clock the system maintains for itself rather than for you.
+
 ## Related
 
 - [[deploying-to-dxp|Deploying a CMS 13 Upgrade to DXP]] — the deploy pipeline + first-boot error catalogue
+- [[post-upgrade-gotchas|Post-Upgrade Gotchas in CMS 13]] — includes the restored-DB sitemap host-binding trap
 
 ## Sources
 

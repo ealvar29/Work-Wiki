@@ -336,6 +336,67 @@ if (content == null) { /* log and skip */ return; }
 
 **How to spot it fast.** Query the ContentArea property value. If it contains `data-inlineblockname` and no `data-contentguid`, it's an inline block. On one site exactly **one** content item used inline blocks — restored production content is all linked — which is why this survives until an editor creates something new. That makes it a UAT-blocker rather than a launch-blocker, and it will be found by your client, not by you.
 
+### `SiteDefinition.Current` Compiles, Doesn't Throw, and Returns the Wrong Site
+
+**Symptom.** There isn't one. That's the whole problem. On a multi-site solution, a feature that reads `SiteDefinition.Current` keeps working after the upgrade, reports plausible-looking results, and those results belong to a **different site**. Nothing appears in the log and nothing fails a smoke test.
+
+**Root cause.** Most upgrade guides tell you `SiteDefinition.Current`'s **setter** throws `NotImplementedException` on CMS 13, so teams grep for assignments, fix those, and move on. The **getter** is the one that bites. Site identity taken from the static accessor is unreliable on CMS 13 for a separate reason: `ISiteDefinitionRepository.List()` returns items whose `Id` is `Guid.Empty`, with synthetic underscore-delimited names:
+
+```
+Site_0E96B85F_3A5A_4C59_AD6A_6C42FE661899_
+```
+
+So anything downstream that identifies a site by GUID or name from that path is working from garbage — but a *plausible* `SiteDefinition` object still comes back, with populated properties. Reads succeed. They're just wrong.
+
+```csharp
+// Compiles on CMS 13. Does not throw. May resolve the wrong site's asset root.
+var images = _contentRepository.GetDescendents(SiteDefinition.Current.SiteAssetsRoot);
+```
+
+**Fix.** Resolve from the request instead, via `ISiteDefinitionResolver`, and **fail loudly rather than falling back**:
+
+```csharp
+if (!Request.Host.HasValue)
+    throw new InvalidOperationException("No request host — refusing to guess a site.");
+
+var site = _siteDefinitionResolver.GetByHostname(Request.Host.Host, true);
+
+if (site == null || ContentReference.IsNullOrEmpty(site.SiteAssetsRoot))
+    throw new InvalidOperationException($"No site asset root for host '{Request.Host.Host}'.");
+
+return site.SiteAssetsRoot;
+```
+
+The throw is deliberate. A silent fallback to an empty or global root is how you get a report that covers the wrong site while looking like it worked — which is the failure mode you just spent time diagnosing.
+
+**How to spot it fast.** `grep -rn "SiteDefinition.Current" --include=*.cs` and treat **every** hit as suspect, not just assignments. Then rank by blast radius: on a single app serving many sites, anything resolving an asset root, a start page, or a content root from the static accessor is a candidate. Verify by exercising the feature on two different hosts and confirming the outputs **differ** — identical output across two sites is the tell. And note what won't help you: it compiles, it boots clean, and a smoke gate passes. Only a two-host comparison catches it.
+
+### After a Production DB Restore, `sitemap.xml` 404s on Every Non-Production Host
+
+**Symptom.** `Geta.Optimizely.Sitemaps` is referenced, `AddSitemaps(...)` is registered, the package clearly loads — and `GET /sitemap.xml` returns **404** on your Integration or test host. The log carries:
+
+```
+fail: Geta.Optimizely.Sitemaps.Controllers.GetaSitemapController[0]
+      Xml sitemap data not found!
+```
+
+**The obvious diagnosis is wrong.** That log line reads like "the sitemap has never been generated", so the natural conclusion is that the generation job hasn't run — especially if your lower environments disable auto-scheduled jobs (`ScheduledJobs Id="*" IsEnabled=false`), which makes the story fit perfectly. Running the job manually changes nothing, and you lose an afternoon.
+
+**Root cause.** Geta stores sitemap **definitions** as content-level data, and resolves a request by matching the **incoming request host** against them. Those definitions come across in the restored production database still carrying **production hostnames**. Nothing claims your Integration host, so there is nothing to serve and nothing for the job to generate *for that host*.
+
+Open the admin page (`/GetaOptimizelySitemaps`) and you'll see rows for every production host and none for the environment you're actually testing. The controller is being reached correctly; it just has no definition to match.
+
+**Fix.** Add a definition per non-production host — no code change, no deploy:
+
+1. `/GetaOptimizelySitemaps` → add a row per host, e.g. `https://<your-int-host>/sitemap.xml`.
+2. **Pick the root page from the content tree, not by typing an ID.** On a multi-site instance the production row's root page ID is not automatically the right one for the host you're adding — see the `SiteDefinition.Current` gotcha above for why site identity is untrustworthy here. Use the existing production row's **View** action first to confirm which site a given root actually generates.
+3. Run the sitemap generation job manually if your environment disables auto-scheduling.
+4. Re-request `/sitemap.xml` and check the URL count against production's sitemap.
+
+Leave the production rows alone — they're correct for production, and you'll want them when that environment exists.
+
+**Two things worth knowing.** First, this is **parity loss, not a missing feature**: production serves a sitemap and advertises it in `robots.txt`, so treat it as a regression rather than an enhancement. Second, `robots.txt` in a test environment usually serves `Disallow: /` — correct, but it also means **no `Sitemap:` directive**, so remember to restore that line at go-live or the sitemap ships unadvertised.
+
 ### A Null ContentLink Turns Every 404 Into a 500
 
 **Symptom.** A large fraction of your 500s are requests for files that don't exist — `.js.map`, `.css.map`, favicons. In one 3-hour window on Integration, **152 of 175 500s** were ordinary source-map 404s.
