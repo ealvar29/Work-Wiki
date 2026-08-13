@@ -397,6 +397,88 @@ Leave the production rows alone — they're correct for production, and you'll w
 
 **Two things worth knowing.** First, this is **parity loss, not a missing feature**: production serves a sitemap and advertises it in `robots.txt`, so treat it as a regression rather than an enhancement. Second, `robots.txt` in a test environment usually serves `Disallow: /` — correct, but it also means **no `Sitemap:` directive**, so remember to restore that line at go-live or the sitemap ships unadvertised.
 
+### The Sitemap Returns 200 — and Silently Includes Every Page Editors Excluded
+
+**Symptom.** You've re-enabled `Geta.Optimizely.Sitemaps` now that a CMS 13 build exists. `GET /sitemap.xml` returns **200** with a plausible list of URLs. But it contains pages that have no business being there — error pages, `/search/`, `/thank-you/`, an old QA test page — and the per-page **XML Sitemap** tab in the editor shows a plain empty text box instead of the Enabled / Priority / Change frequency controls. No exception, no warning, nothing in the log.
+
+Same shape for `robots.txt`: it serves fine, but there's no `Sitemap:` line on any environment — production included.
+
+**The obvious diagnosis is wrong.** The natural reading is "nobody ever marked these pages as excluded", so you start ticking *exclude* page by page. On a multi-site instance that's dozens of edits — and every one is wasted, because the exclusions were set years ago and are **still sitting in the database**.
+
+**Root cause.** While the vendor had no CMS 13 build, the property's backing type was commented out so the solution would compile:
+
+```csharp
+[UIHint("SeoSitemap")]
+// [BackingType(typeof(PropertySEOSitemaps))]  ← commented out to survive the upgrade
+public virtual string? SEOSitemaps { get; set; }   // ← degrades to a plain string
+```
+
+`[BackingType]` is what binds a model property to the CMS property type that actually stores and renders the data. Remove it and the property falls back to a plain string: the editor loses the custom UI, and the sitemap generator asks for its typed property, finds nothing, and defaults to **include everything**.
+
+The rows are never deleted. The model just stops mapping to them.
+
+> This is a **silent data-visibility bug, not a missing feature** — and that's what makes it dangerous. The headline feature (`sitemap.xml` returns 200) works, so the ticket reads as done.
+
+**Prove it before you touch the CMS.** One query tells you whether the data is still there and how much of it is being ignored:
+
+```sql
+SELECT COUNT(*) AS Excluded
+FROM tblContentProperty cp
+JOIN tblPropertyDefinition pd ON cp.fkPropertyDefinitionID = pd.pkID
+WHERE pd.Name = 'SEOSitemaps'
+  AND ISNULL(cp.[String], cp.LongString) LIKE '%<enabled>false</enabled>%';
+```
+
+On the project this was found on: **91 values intact, 19 of them `enabled=false`** — nineteen pages the sitemap had been publishing against the editors' explicit instruction.
+
+**Fix.** Uncomment the attribute and its `using`, and restore any integration code that was stubbed alongside it — in this case `ISitemapRepository` injection in the `robots.txt` controller, which emits the `Sitemap:` directive. Then re-run the generation job.
+
+**Does the data survive re-attaching the backing type?** Yes, in both directions — worth knowing because it looks risky. `PropertySEOSitemaps` derives from `PropertyString`, which stores in `tblContentProperty.[String]`; the stubbed plain-string property stores in `LongString`. EPiServer migrates the values when the property-definition type changes, so the round trip out and back is lossless. Check `MAX(LEN(...))` against `[String]`'s `nvarchar(450)` first if your values could be long. Snapshot the rows to a CSV before deploying anyway — on DXP you cannot reach the database externally to repair it afterwards.
+
+**Verify by diffing path sets against the old site, not by counting.** Counts can match while the contents differ:
+
+```powershell
+function Paths($u){ ([xml](Invoke-WebRequest $u -UseBasicParsing).Content).urlset.url.loc |
+                    ForEach-Object { ([uri]$_).AbsolutePath.ToLower() } }
+$new = Paths 'https://<new-host>/sitemap.xml'; $old = Paths 'https://<live-host>/sitemap.xml'
+$new | Where-Object { $old -notcontains $_ }   # ← extras: the real defects
+$old | Where-Object { $new -notcontains $_ }   # ← usually just content published since your DB snapshot
+```
+
+Aim for **zero** only-on-new entries. Only-on-old entries are normally content authored after your database copy was taken, not a bug.
+
+**Expect some pages to legitimately have no value.** Absence isn't a defect — of eight `SearchPage` instances across ~24 sites, exactly one had ever been set. Let the old site's sitemap arbitrate rather than assuming every page needs an explicit setting.
+
+**The generalisable lesson.** Every stub like this was written behind a comment whose condition has since expired:
+
+```bash
+grep -rn "re-add when vendor ships\|no CMS 13 release\|when the package is updated" --include=*.cs .
+```
+
+Run that the day a blocked package finally ships. A re-enablement is not "add the PackageReference back" — it's *every* integration point that was commented out to survive its absence, and the ones that fail loudly are the ones you'll remember to fix.
+
+### `robots.txt` Still Disallows `/episerver` — Which No Longer Exists
+
+**Symptom.** Nothing appears broken. But `robots.txt` carries the line it has carried for years:
+
+```
+User-agent: *
+Disallow: /episerver
+```
+
+On CMS 13 that path is a **404**. The editor moved to **`/ui/cms`**, which is wide open to crawlers because nothing disallows it.
+
+**Why it survives the upgrade.** This is usually *content*, not code — a `RobotsTxtContext` (or similarly named) property on the start page, edited in the CMS. Code-focused upgrade sweeps never look at it, and it produces no error, so it outlives every other `/episerver` reference in the solution. Anywhere the CMS 12 editor path was hard-coded into editable content — robots rules, redirect exclusions, help links, firewall/WAF path rules — has the same problem.
+
+**Fix.** Update the property per site (it's per-start-page on a multi-site instance, so it's not a single edit) and confirm the real path first rather than trusting either value:
+
+```bash
+curl -o /dev/null -w '%{http_code}\n' https://<host>/episerver   # 404 on CMS 13
+curl -o /dev/null -w '%{http_code}\n' https://<host>/ui/cms      # 302 to the identity provider
+```
+
+Diff the whole file against the live site while you're there — this is exactly the kind of property that quietly drifts between environments.
+
 ### A Null ContentLink Turns Every 404 Into a 500
 
 **Symptom.** A large fraction of your 500s are requests for files that don't exist — `.js.map`, `.css.map`, favicons. In one 3-hour window on Integration, **152 of 175 500s** were ordinary source-map 404s.
