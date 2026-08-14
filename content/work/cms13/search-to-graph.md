@@ -312,13 +312,38 @@ Obvious in hindsight, easy to miss: if a property fails to deserialize — see [
 
 Note the failure is **silent in both places**: the property returns an empty list with no exception, and the index simply lacks the text. Nothing anywhere says "this content could not be read." If recall is short and you cannot explain why, load a sample of the affected pages through `IContentLoader` and check the collection properties are actually populated before you touch the search code.
 
-### 12. Best Bets vanish — and nothing tells you
+### 12. Best Bets become Pinned Results — but nothing migrates, and nothing tells you
 
-Find supports **Best Bets**: editor-curated results promoted to the top of a query, including entries pointing at *external URLs*. Graph has no equivalent, and a `QueryContent<PageData>()` + `QueryContent<GenericFile>()` implementation cannot express one — pages and media are the only two result sources.
+Find's **Best Bets** (editor-curated results promoted to the top of a query) map to Graph's **Pinned Results**, and the CMS 13 Graph SDK exposes `.WithPinned()`:
 
-This is the quietest gap on the list. Search keeps working, results keep appearing, nothing errors. The curated answer just stops showing up.
+```csharp
+if (q is ISearchableContentQuery<T> searchable)
+    q = searchable.SearchFor(term).WithPinned();          // ← without this, pinning never applies
+```
 
-**How to detect it before an editor does.** Compare the *result types* your CMS 12 and CMS 13 endpoints return, not just the URLs:
+So the feature exists. What does *not* exist is any of the plumbing around it, and the failure mode is silence on every axis:
+
+| | Search & Navigation | Optimizely Graph |
+|---|---|---|
+| Migration | — | **None. Manual re-creation, every entry** |
+| Configuration | Admin UI | **REST API only** (HMAC or Basic auth) |
+| External URLs | supported | **Not supported at all** |
+| Count | unlimited | **max 5 per collection** |
+| Languages | applied to all at once | **separate item per language** |
+| Titles/descriptions | custom | content fields only, styled at app layer |
+| Priority | insertion order | explicit assignment |
+
+Three traps follow from that table.
+
+**First, `.WithPinned()` is opt-in in your own code.** A migrated search service that never calls it will run perfectly and apply zero pins. Search still works, results still appear, nothing errors — the curated answer just stops showing up. Grep your search service for `WithPinned` before assuming parity.
+
+**Second, external-URL Best Bets have no path forward.** Optimizely is explicit: Graph "supports internal CMS content only." On one site the single highest-value promoted result was an external URL pointing at a corporate careers site — that one cannot be migrated at all, and needs a different answer entirely (a stub content item, or a redirect).
+
+**Third, the five-per-collection ceiling is a real constraint**, not a formality, if the CMS 12 site leaned on Best Bets heavily. Inventory before you promise parity.
+
+Management surfaces, since the REST-only story is awkward: Optimizely shipped a native **Search Management portal** (beta), and the community **[OptiGraphExtensions](https://github.com/adayinthelifeofapro/OptiGraphExtensions)** package manages synonyms and pinned results from inside the CMS.
+
+**How to detect the gap before an editor does.** Compare the *result types* your CMS 12 and CMS 13 endpoints return, not just the URLs:
 
 | | page | file | **link** |
 |---|---|---|---|
@@ -331,7 +356,9 @@ A whole category dropping to zero is the signal. On the site above, one query re
 _t_hit.id=EPiServer_Find_Framework_BestBets_ExternalUrlBestBet/AZuAsrxHJT1ji6Yw4u8L
 ```
 
-**Export the Best Bets list while CMS 12 is still live.** It lives in Find's admin, not in your database or your repo, and it goes away with the index. So does the search-statistics history. Both are unrecoverable after the upgrade, and both are things you will wish you had.
+**Export the Best Bets list while CMS 12 is still live.** It lives in Find's admin, not in your database or your repo, and it goes away with the index — and since there is no automated migration, that export *is* your migration input. You will also need to map content IDs to Graph GUIDs. The search-statistics history dies with it too. Both are unrecoverable after the upgrade, and both are things you will wish you had.
+
+Docs: [Migrate Best Bets to Pinned Results](https://docs.developers.optimizely.com/platform-optimizely/docs/migrate-pinned-results).
 
 ### Baselining recall: four traps that manufacture false blockers
 
