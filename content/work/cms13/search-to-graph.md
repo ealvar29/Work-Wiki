@@ -312,6 +312,40 @@ Obvious in hindsight, easy to miss: if a property fails to deserialize — see [
 
 Note the failure is **silent in both places**: the property returns an empty list with no exception, and the index simply lacks the text. Nothing anywhere says "this content could not be read." If recall is short and you cannot explain why, load a sample of the affected pages through `IContentLoader` and check the collection properties are actually populated before you touch the search code.
 
+### 12. Best Bets vanish — and nothing tells you
+
+Find supports **Best Bets**: editor-curated results promoted to the top of a query, including entries pointing at *external URLs*. Graph has no equivalent, and a `QueryContent<PageData>()` + `QueryContent<GenericFile>()` implementation cannot express one — pages and media are the only two result sources.
+
+This is the quietest gap on the list. Search keeps working, results keep appearing, nothing errors. The curated answer just stops showing up.
+
+**How to detect it before an editor does.** Compare the *result types* your CMS 12 and CMS 13 endpoints return, not just the URLs:
+
+| | page | file | **link** |
+|---|---|---|---|
+| CMS 12 / Find | 116 | 45 | **7** |
+| CMS 13 / Graph | 99 | 226 | **0** |
+
+A whole category dropping to zero is the signal. On the site above, one query returned a *single* result on production — an external Best Bet pointing at the corporate careers site — and returned nothing at all on CMS 13. The giveaway is in the tracking querystring Find appends to its own hits:
+
+```
+_t_hit.id=EPiServer_Find_Framework_BestBets_ExternalUrlBestBet/AZuAsrxHJT1ji6Yw4u8L
+```
+
+**Export the Best Bets list while CMS 12 is still live.** It lives in Find's admin, not in your database or your repo, and it goes away with the index. So does the search-statistics history. Both are unrecoverable after the upgrade, and both are things you will wish you had.
+
+### Baselining recall: four traps that manufacture false blockers
+
+Item 1 of the sequencing advice below says capture a baseline. Doing it badly is worse than not doing it — every one of these produced a confident, wrong "indexing gap" on a real project:
+
+1. **"Absent from the top N" ≠ "not indexed."** A page can be indexed and simply not match that query. One page flagged as missing for *potassium hydroxide* was sitting in the CMS 13 top 6 for *peladow*. Always confirm existence independently — HTTP status plus sitemap membership — before calling anything an index gap.
+2. **Don't normalise the host away.** Stripping hosts to compare paths turned an `oxy.com` Best Bet into a 404 against a different site's host, inventing a blocker. Cross-host results must be *detected*, not flattened.
+3. **Strip Find's tracking querystring** (`_t_id`, `_t_q`, `_t_hit…`) or nothing will ever compare equal.
+4. **Graph returns pages and files as separate result sets** (see #4 above), so `itemsPerPage: 10` can yield ~20 items on CMS 13 against 10 on CMS 12. Compare set membership, never position.
+
+Two more things worth knowing. **Graph typically matches far more broadly than Find** — totals of 117 vs 28, 42 vs 3, 16 vs 1 for the same query were normal on one migration. Higher recall, lower precision: a tuning conversation, not a defect. And **querying production writes to Find's own search statistics**, so a baseline run pollutes the data you harvested the query list from. Run it deliberately, once.
+
+**Pick query pairs, not just top queries.** Include `sds`/`safety data sheet`, an acronym and its expansion, a hyphenated term and its common misspelling. When only one half of a pair fails you have isolated tokenisation or fuzzy-matching; when a lone query fails you have learned "search is different." Source the list from the CMS 12 **search statistics per site** — but filter out type-ahead keystroke fragments first, because search-as-you-type logs every keystroke as its own query and single characters will out-rank real ones.
+
 ### Sequencing advice
 
 1. **Capture a CMS 12 baseline before migrating** — ~20 representative queries with result counts and top hits per site. Without it you cannot tell a ranking difference from a missing page, and "search parity" is unfalsifiable at sign-off.
