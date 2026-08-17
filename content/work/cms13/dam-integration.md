@@ -221,6 +221,64 @@ Recommended approach:
 
 ## Troubleshooting
 
+### DAM assets never appear in an image property picker — `AllowedTypes` silently excludes them
+
+**Symptom.** The DAM is fully working — assets browse fine in Content Manager's **DAM** tab, `GetAvailableTypes` returns 200, features are activated — but when an editor opens an image property on a page or block, only CMS media appears. There is no "Browse DAM" option. Nothing errors, nothing logs.
+
+**The obvious diagnosis is wrong,** and it wastes a lot of time. The symptom looks like a broken integration, so you check the things that *do* break: the Graph `cmp` source, the CMP client secret, the Opti ID session, `AddDamUI()`, asset-type activation. On one project all of those were healthy — Graph held 208 indexed assets — and the picker was still empty.
+
+**Root cause.** Optimizely's asset-picker doc states one property requirement:
+
+> Apply the `UIHint.Image` hint to `ContentReference` properties that reference DAM assets.
+
+It never mentions `AllowedTypes` — and that silence is the whole finding. A typical CMS 12-era property looks like this:
+
+```csharp
+[UIHint(UIHint.Image)]
+[AllowedTypes(typeof(ImageFile))]   // ← excludes every DAM asset
+public virtual ContentReference BackgroundImage { get; set; }
+```
+
+**DAM assets are external content, not a registered CMS content type.** Check Admin → Content Types: "Optimizely DAM Image" is *not there*. So an `AllowedTypes` filter naming your own media types can never admit them, and the picker quietly offers CMS media only.
+
+**Fix.** Remove `AllowedTypes` from properties that should accept DAM assets. The context menu immediately gains two entries:
+
+```
+Browse
+Browse DAM        ← the DAM picker
+Upload to CMS     ← imports the asset into CMS media
+Remove
+```
+
+**Prove it cheaply before touching every property.** Remove the attribute from *one* property and leave its neighbour untouched — two properties on the same block become an A/B with one variable, answerable in one editor session. Most sites have 20–30 image properties; you do not want to sweep them on a hypothesis.
+
+⚠️ **Don't sweep blindly afterwards either.** `AllowedTypes` was doing a real job: without it an editor can drop pages or blocks into an image field. Decide a deliberate replacement rather than deleting the attribute everywhere.
+
+### A DAM asset is selected, saves fine, and renders nothing
+
+**Symptom.** Editor picks a DAM image, publishes, and the front end shows no image. Swapping to a CMS image renders correctly.
+
+**Root cause.** Typed media mappers assume CMS media:
+
+```csharp
+if (loader.TryGet(source, out ImageFile imageFile))   // false for an external DAM reference
+{
+    destination = new Picture { RelativeUrl = url, ... };
+}
+return destination;                                    // null, and nothing logged
+```
+
+"Browse DAM" *references* the asset externally — it does not import it — so `TryGet<ImageFile>` fails and the mapper returns empty-handed. Getting the picker working is only half the job; **budget for the mapper as well**, and add a log line to that fall-through branch first so the failure stops being silent.
+
+**Two things to get right in the mapper:**
+
+- **Never bind the asset's `Url`** — that is the original. One sampled asset was 8256×5504 and ~30 MB. Graph exposes `Renditions[] = { Id, Name, Width, Height, Url }` (typically Banner 1920, CONTENT-LARGE 1400, CONTENT-MEDIUM 800, CONTENT-SMALL 480, Thumbnail, Logo) — a ready-made responsive set. Confirm the names exist on every asset and fall back deliberately.
+- **Check alt text before you promise accessibility.** On one library **197 of 199 images had an empty `AltText`**, with `Description` and `Attribution` empty too. Enabling DAM images without fixing that publishes nearly every one with no alt text — a regression introduced by the feature. It is a content task in CMP, and it is usually the longest pole.
+
+Also filter on `Status = Published` (an `ExpiryDate` field exists) so unpublished or expired assets cannot leak onto the site.
+
+**"Upload to CMS" is a legitimate alternative.** It copies the asset into CMS media as a normal image, so no mapper work is needed at all — at the cost of duplicated storage and a copy that drifts from the DAM. Decide which model you want *before* writing code; it is a product decision, not a technical one.
+
 ### DAM feature activation fails with "'graph' is not supported as 'Type'"
 
 **Symptom.** In the editor, **Settings → Optimizely DAM Features → Activate** (Images / Videos / Documents) fails with a toast **"Feature activation failed. ('graph' is not supported as 'Type'.)"** and the browser console shows:
