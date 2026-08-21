@@ -95,48 +95,94 @@ CMS 12 created blocks as standalone content items; CMS 13's Visual Builder creat
 
 Measured on one upgraded instance: **5,764 blocks in plain folders vs 3,360 in content-asset folders** — so the legacy path is the majority, not an edge case.
 
-### Consequence 1 — "View on website" navigates to `/ui/null`
+### Consequence 1 — "View on website" gave `/ui/null` — 🟢 FIXED, upgrade to 13.1.1
 
-A block has no route of its own. The shell asks the server for a preview URL, gets `null`, and its JavaScript concatenates it into a path anyway — relative to `/ui/` that resolves to `/ui/null`, which 404s. Editors read it as "the site is broken" right after publishing.
+A block has no route of its own. Optimizely's own words: *"Blocks do not have their own URL and must be part of other content, such as a page."* On **13.1.0 and earlier** the shell asked for the content's public URL, got an empty string, and navigated anyway — relative to `/ui/` that resolves to `/ui/null`, which 404s. Editors read it as "the site is broken" right after publishing.
 
-Optimizely's position: **known limitation, no built-in guard, no supported way to suppress the command.**
+> ✅ **This is `CMS-51887`, fixed in CMS 13.1.1 / `EPiServer.CMS.UI` 13.1.1 (published 2026-07-31).** The fix **suppresses the command** for content with no URL of its own, rather than populating it — so on 13.1.1 the button is simply absent inside a block. Confirmed on a real instance.
+>
+> **The fix is a version number. Do not write a workaround for this.**
 
-The server-side seam is the REST model the shell consumes. `ContentStoreModelCreator` takes `IEnumerable<IModelTransform>` in its constructor, so add to the pipeline rather than replacing an `Internal` class:
+⚠️ **An earlier revision of this page said the opposite** — "known limitation, no built-in guard, no supported way to suppress" — sourced from an **AI-generated support reply**. A human support engineer contradicted it and gave the bug ID. The AI answer was persuasive because its *technical* description matched what we had independently verified; being right about the mechanism and right about vendor roadmap are different things. **Check the package feed for a released fix before building around a reported limitation.**
+
+<details>
+<summary>Historical: the workaround we built and then deleted (kept for the API details, which are still accurate)</summary>
+
+Four attempts, all unnecessary. The seam is real if you ever need it: `ContentStoreModelCreator` takes `IEnumerable<IModelTransform>` in its constructor, so you add to the pipeline rather than replacing an `Internal` class.
 
 ```csharp
-public class BlockPreviewUrlTransform : TransformBase<ContentDataStoreModelBase>
+public class BlockPublicUrlTransform : TransformBase<ContentDataStoreModelBase>
 {
     public override TransformOrder Order => TransformOrder.TransformEnd;
 
     public override Task TransformInstanceAsync(IContent content,
         ContentDataStoreModelBase model, IModelTransformContext context, CancellationToken ct)
-    { /* fill model.PreviewUrl when it is empty */ }
+    { /* fill model.PublicUrl when it is empty */ }
 }
-services.AddTransient<IModelTransform, BlockPreviewUrlTransform>();
+services.AddTransient<IModelTransform, BlockPublicUrlTransform>();
 ```
 
-Three things the API docs get wrong or omit:
+Four API details worth keeping, each of which cost an attempt:
 
+- **`PublicUrl` is the empty field, not `PreviewUrl`.** `PreviewUrl` is *always* populated for a block — it is the CMS edit-mode URL. Keying off it means the transform never fires. Capture `/ui/cms/Stores/contentdata/{id}` in the browser and read the payload rather than guessing which field is blank.
 - `TransformOrder` is an **enum** — `InputFilter, TransformStart, Transform, TransformEnd, OutputFilter`. Not an int; there is no `Default`, `Late` or `Last`.
 - The abstract member is **`TransformInstanceAsync(..., CancellationToken)`**, not the sync `TransformInstance` the XML docs list first.
 - `ContentAssetFolder.ContentOwnerID` is a **`Guid`**, not a `ContentReference`.
 
-⚠️ **Do not resolve the owning page via the asset folder.** Only blocks in a page's *content-asset* folder have a `ContentOwnerID`, and on an upgraded site most blocks sit in plain folders instead. Use `IContentRepository.GetReferencesToContent(link, false)` — the reference graph is the only thing that connects a shared block to the page displaying it. Where a block has several referrers there is no single right answer; leave the URL null rather than guessing.
+⚠️ **Do not resolve the owning page via the asset folder.** Only blocks in a page's *content-asset* folder have a `ContentOwnerID`, and on an upgraded site most blocks sit in plain folders instead. Use `IContentRepository.GetReferencesToContent(link, false)` — the reference graph is the only thing connecting a shared block to the page displaying it.
 
-### Consequence 2 — `Html.EditAttributes` silently does nothing with a view model
+</details>
 
-If your blocks render from a **mapped view model** rather than the content type, on-page editing has no DOM node to associate with a property, so changing an image updates the field but not the preview. The editor only corrects on a full re-render — which is why switching to "All properties" and back appears to fix it.
+### Consequence 2 — the block preview does not refresh when a property changes
 
-`Html.EditAttributes(m => m.BackgroundImage)` **cannot help**: it needs the model to *be* the content (`IContentData`) so it can bind property → content. Given a view model it returns an empty string — no warning, no exception.
+Change an image on a block and the preview keeps showing the old one until you reload — or leave for "All properties" and come back. The save was always fine; the preview had no live binding.
 
-Verify before assuming it works. In the preview iframe:
+**The fix is two things, and it needs both.**
+
+**1. Bind the ContentArea with the `epi-property` tag helper, not `Html.PropertyFor`:**
+
+```razor
+@* ~/Views/Pages/Preview.cshtml *@
+<div epi-property="@Model.PreviewContentArea"></div>
+```
+
+Optimizely's guidance is explicit that this is what *"enables real-time updates when editors modify properties, as the block renders through the standard content area property mechanism rather than directly."* `Html.PropertyFor` renders the block but establishes no binding the editor can use.
+
+Requires the tag helpers to be registered — they are **not** on by default:
+
+```razor
+@* ~/Views/_ViewImports.cshtml *@
+@addTagHelper *, EPiServer.Cms.AspNetCore.TagHelpers
+```
+
+**2. Put `[RequireClientResources]` on the preview controller:**
+
+```csharp
+[TemplateDescriptor(Inherited = true, TemplateTypeCategory = TemplateTypeCategories.MvcController,
+                    Tags = new[] { RenderingTags.Preview, RenderingTags.Edit }, AvailableWithoutTag = false)]
+[RequireClientResources]        // EPiServer.Framework.Web.Mvc — NOT EPiServer.Framework.Web
+[VisitorGroupImpersonation]
+public class PreviewController : ActionControllerBase, IRenderTemplate<BlockData>
+```
+
+This is what emits the on-page editing JavaScript into the preview response. **Without it the tag-helper binding has nothing client-side to act on** — you get correct markup and still no refresh. The binding alone is necessary but not sufficient.
+
+🟠 Namespace trap: `RequireClientResourcesAttribute` lives in **`EPiServer.Framework.Web.Mvc`** (assembly `EPiServer.Cms.AspNetCore.Mvc`). One segment away from `EPiServer.Framework.Web`, which a preview controller usually already imports.
+
+🟠 Optimizely's sample also implements `IModifyLayout` to hide header/footer, and renders at three container widths. **`IModifyLayout` is an Alloy-sample interface, not a platform type** — it will not resolve in your solution. A deliberately bare preview layout does the same job. The three widths are an Alloy nicety, not a requirement.
+
+#### Two approaches that do NOT work — don't repeat them
+
+**`Html.EditAttributes` is silently inert when the view renders a mapped view model.** It needs the model to *be* the content (`IContentData`) so it can bind property → content. Given a view model it returns an empty string — no warning, no exception. Verify rather than assume, in the preview iframe:
 
 ```js
 [...document.querySelectorAll('[data-epi-property-name]')]
   .map(e => e.getAttribute('data-epi-property-name'))
 ```
 
-Empty, with `epieditmode=true` in the iframe URL and the block clearly rendered, means the helper produced nothing. The attribute is only markup, so emit it directly:
+Empty, with `epieditmode=true` in the iframe URL and the block clearly rendered, means the helper produced nothing.
+
+**Emitting `data-epi-property-name` by hand does not help either.** It appears in the DOM correctly — verified — and the editor still will not re-render a `ContentReference` property from it:
 
 ```razor
 @{ var bgEditAttr = contextModeResolver.CurrentMode == ContextMode.Edit
@@ -144,7 +190,7 @@ Empty, with `epieditmode=true` in the iframe URL and the block clearly rendered,
 <div class="background-video"@bgEditAttr>
 ```
 
-Put it on a container that **always renders**. If it sits on an element that only appears once the property has a value, the *first* image an editor sets still will not show.
+If you do this anyway (harmless, edit-mode only), put it on a container that **always renders** — on an element that only appears once the property has a value, the *first* image an editor sets still will not show. But it is not the fix; the tag helper plus `[RequireClientResources]` is.
 
 ### Consequence 3 — a custom block preview has no page chrome
 
