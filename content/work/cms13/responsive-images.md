@@ -130,7 +130,10 @@ Format is preserved, or upgraded to AVIF/WebP by `Accept`-header negotiation via
 - **Skip SVG, GIF, ICO, BMP** — vector, possibly animated, or a favicon container.
 - **Skip non-same-origin and protocol-relative URLs** (`//host/x`), and never nest `/cdn-cgi/image/` twice.
 - **Put the kill switch in config.** CDN transformations are billed per request; a `ResponsiveImages:Enabled` flag lets someone turn it off without a deploy.
-- Find the **single choke point that emits `<img>`** if there is one. On this site one view-model method fed the hero, small hero, content and article-media blocks — one edit covered all of them.
+- **Never emit a null `srcset` on a `<source>`.** A `<source>` whose srcset is empty is skipped, and the browser falls through to the `<img>`. In the common art-direction pattern the source is the *desktop* image and the img is the *mobile* one — so a null there quietly serves a phone-sized file to every desktop visitor. Have your helper fall back to the original URL for `<source>`, and only return null for `<img>` (Razor omits a null attribute, which is what you want there).
+- **Set `sizes` per slot, not blanket `100vw`.** A third-width grid image told `100vw` makes the browser choose a full-width candidate and hands most of the saving back.
+- 🟠 **Check for a choke point, but verify it is one.** A view-model method that renders `<img>` looks like the single seam — on this site `Picture.RenderImage()` had exactly **one** caller, and the heaviest images (the heroes) hand-wrote their own markup and bypassed it entirely. Grep for the **method call**, not the model name; the model name appears in views that never call it.
+- Views compiled into the main assembly? Then `dotnet build` really does validate your Razor. Confirm rather than assume — if a `*.Views.dll` is absent it may mean compiled-in (ASP.NET Core 3.0+) *or* deferred to runtime. `ilspycmd -t AspNetCoreGeneratedDocument.Views_...` will show the compiled view body and settle it.
 
 > 🟢 A neat tell that this work is needed: the hero file was named **`home-b1-1920w.jpg`**. Editors were already hand-naming assets by width, doing the job manually.
 
