@@ -139,11 +139,13 @@ Change an image on a block and the preview keeps showing the old one until you r
 
 **The fix is two things, and it needs both.**
 
+> 🟢 **SOLVED and verified on a real instance, 2026-08-26.** The two steps below are both necessary and were both, as originally written here, **incomplete** — following this page alone produced a completely blank preview twice. Read the two corrections marked ⚠️ before implementing. Optimizely support supplied both; each was then confirmed in the decompiled platform code.
+
 **1. Bind the ContentArea with the `epi-property` tag helper, not `Html.PropertyFor`:**
 
 ```razor
 @* ~/Views/Pages/Preview.cshtml *@
-<div epi-property="@Model.PreviewContentArea"></div>
+<div epi-property="@Model.PreviewContentArea" />      @* SELF-CLOSING — see below *@
 ```
 
 Optimizely's guidance is explicit that this is what *"enables real-time updates when editors modify properties, as the block renders through the standard content area property mechanism rather than directly."* `Html.PropertyFor` renders the block but establishes no binding the editor can use.
@@ -154,6 +156,29 @@ Requires the tag helpers to be registered — they are **not** on by default:
 @* ~/Views/_ViewImports.cshtml *@
 @addTagHelper *, EPiServer.Cms.AspNetCore.TagHelpers
 ```
+
+⚠️ **Correction 1 — the element MUST be self-closing. This is not a style choice, and it is the whole reason a preview comes back blank.**
+
+```razor
+<div epi-property="@Model.PreviewContentArea"></div>   @* renders NOTHING *@
+<div epi-property="@Model.PreviewContentArea" />       @* renders the block *@
+```
+
+An explicit closing tag means *"I will supply the template for each item myself"*. The helper then renders **your element body** once per content-area item — and an empty body produces an empty `<div>`: **no exception, no console error, and the edit attributes still present**, so every surface-level check says it is working.
+
+Confirmed in `EPiServer.Web.Mvc.TagHelpers.Internal.ContentAreaItemRendererBase.RenderItemsAsync`:
+
+```csharp
+if (output.TagMode == TagMode.StartTagAndEndTag)          // <div ...></div>
+    foreach (var item in contentAreaItems) {
+        var child = await output.GetChildContentAsync(useCachedResult: false);
+        if (!child.IsEmptyOrWhiteSpace) output.Content.AppendHtml(child);   // YOUR body
+    }
+else                                                       // <div ... />
+    if (await TryRenderPartialView(...)) return;                           // THE property
+```
+
+Optimizely's documented sample is self-closing throughout. That is easy to read past, and it is the only structural difference that matters.
 
 **2. Put `[RequireClientResources]` on the preview controller:**
 
@@ -167,13 +192,35 @@ public class PreviewController : ActionControllerBase, IRenderTemplate<BlockData
 
 This is what emits the on-page editing JavaScript into the preview response. **Without it the tag-helper binding has nothing client-side to act on** — you get correct markup and still no refresh. The binding alone is necessary but not sufficient.
 
+⚠️ **Correction 2 — `[RequireClientResources]` REGISTERS the scripts. It does not EMIT them.** Your preview layout has to render them, or the attribute achieves nothing on its own:
+
+```razor
+@using EPiServer.Framework.Web.Mvc
+
+@Html.RequiredClientResources("Header")   @* inside <head> *@
+@Html.RequiredClientResources("Footer")   @* immediately before </body> *@
+```
+
+**The `Footer` call is the load-bearing one** — it emits the on-page editing script. Without it the preview page has no live-update JavaScript at all, so it can never refresh and reports nothing: no error, no warning.
+
+🟠 **This bites specifically because preview layouts are deliberately bare.** On the instance where this was diagnosed, `_PreviewLayout.cshtml` was the *only* layout in the solution missing both calls — every normal page layout had them, which is why the site worked and only the preview did not. If you strip a layout down for preview use, these two lines are not decoration.
+
+Together the two corrections explain both halves of the symptom: **the closing tag caused the blank render, the missing client resources caused the no-refresh.** Two independent faults presenting as one bug, which is why fixing either alone looked like "still broken".
+
 🟠 Namespace trap: `RequireClientResourcesAttribute` lives in **`EPiServer.Framework.Web.Mvc`** (assembly `EPiServer.Cms.AspNetCore.Mvc`). One segment away from `EPiServer.Framework.Web`, which a preview controller usually already imports.
 
 🟠 Optimizely's sample also implements `IModifyLayout` to hide header/footer, and renders at three container widths. **`IModifyLayout` is an Alloy-sample interface, not a platform type** — it will not resolve in your solution. A deliberately bare preview layout does the same job. The three widths are an Alloy nicety, not a requirement.
 
 #### Two approaches that do NOT work — don't repeat them
 
-**`Html.EditAttributes` is silently inert when the view renders a mapped view model.** It needs the model to *be* the content (`IContentData`) so it can bind property → content. Given a view model it returns an empty string — no warning, no exception. Verify rather than assume, in the preview iframe:
+**`Html.EditAttributes` returns nothing here — but NOT for the reason first recorded on this page.** An earlier revision said it is inert because the model is not `IContentData`. Optimizely support corrected that: it emits only when the name it resolves is a **real, editable property of the content currently being routed, in the current language**. For a view model you declare the mapping explicitly with edit hints:
+
+```csharp
+ViewData.GetEditHints<BlockEditPreviewViewModel, VinylBlock>()
+        .AddConnection(vm => vm.Background, b => b.BackgroundImage);
+```
+
+Either way it returns an empty string with no warning when it cannot resolve. Verify rather than assume, in the preview iframe:
 
 ```js
 [...document.querySelectorAll('[data-epi-property-name]')]
@@ -190,7 +237,24 @@ Empty, with `epieditmode=true` in the iframe URL and the block clearly rendered,
 <div class="background-video"@bgEditAttr>
 ```
 
-If you do this anyway (harmless, edit-mode only), put it on a container that **always renders** — on an element that only appears once the property has a value, the *first* image an editor sets still will not show. But it is not the fix; the tag helper plus `[RequireClientResources]` is.
+If you do this anyway (harmless, edit-mode only), put it on a container that **always renders** — on an element that only appears once the property has a value, the *first* image an editor sets still will not show. But it is not the fix; the self-closing tag helper plus emitted client resources is.
+
+### There IS a supported way to force a refresh — use it for image properties
+
+An earlier revision of this page said no such API exists. That came from an AI-generated support reply and is **wrong**. Both of these register a property for a full preview refresh on change, independently of any `epi-property` binding:
+
+```razor
+@Html.FullRefreshPropertiesMetaData(new[] { "BackgroundImage", "MobileBackgroundImage" })
+```
+
+```csharp
+[ReloadOnChange]
+public virtual ContentReference BackgroundImage { get; set; }
+```
+
+🟠 `[ReloadOnChange]` relies on autosave, so it does **not** apply in the Quick Edit dialog.
+
+Reach for this when the binding renders correctly but a specific property still will not refresh — it targets the symptom directly rather than reworking the preview plumbing.
 
 ### Consequence 3 — a custom block preview has no page chrome
 
