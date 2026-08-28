@@ -132,6 +132,179 @@ no stack (detailed errors are off outside `Development`).
 | Site returns 503 / wrong site / "no site" even after a clean boot | The restored DB carries **production hostnames** in its site definitions. If `EnvironmentSynchronizer` isn't an active package in CMS 13, nothing rewrites them per-environment. | Log in via `…dxcloud.episerver.net/util/login` (local admin account — SAML ReturnUrl points at the prod host and won't work via the slot URL), then Admin → **Manage Websites** → add the `…inte.dxcloud.episerver.net` host to the correct site definition. |
 | Search returns nothing | Optimizely Graph index for the new env is empty. | Run the **"Content Graph Full Re-index"** scheduled job. Note: **DXP injects its own ContentGraph keys** (lowercase `optimizely:contentgraph:*`) as env vars that override your appsettings keys — so each DXP env has its **own isolated index** (re-indexing one env won't touch another). |
 
+## Provisioning a BRAND-NEW environment (empty DB) — the opposite failure mode
+
+Everything above assumes the target has a **restored** database. Standing up Preproduction or
+Production for the first time is the mirror image: the DB is **empty**, and a different class of
+bug surfaces. Do not assume a working Integration means a new environment will boot.
+
+Optimizely support will tell you *"PREP and PROD are provisioned automatically when you deploy
+code to them."* That is **true about the environment and false about the application.**
+
+### Two-pass provisioning is unavoidable
+
+```
+environment does not exist   ->  cannot set its app settings
+        v
+deploy to create it          ->  app boots with NO configuration (and may crash)
+        v
+now set app settings         ->  DXP applies them only ON DEPLOY
+        v
+deploy AGAIN                 ->  finally healthy
+```
+
+Worse, on at least one project the PaaS portal **did not list the new environment in the
+app-settings dropdown until a deployment had reached a terminal state**. If your app has
+*mandatory* startup configuration, that is a genuine circular dependency: the deploy can't
+succeed without settings, and settings can't be added without a completed deploy.
+
+> **Budget two deploys minimum per new environment, and check early whether your app can boot
+> with zero configuration.** If it can't, either make the hard dependency tolerant of absence or
+> ship a placeholder in `appsettings.<Env>.json` that a real app setting overrides on the next
+> deploy.
+
+### 🔴 NEVER auto-complete (auto-swap) a first deploy to a virgin environment
+
+The slot swap gates on the new app answering an **HTTP ping**. On a virgin environment nothing
+has ever booted, so if the app crashes the swap can never succeed — and DXP *retries it*:
+
+```
+Timed out waiting for all instances for webapp <app> and slot "slot" to become ready!
+Cannot swap site slots for site '<app>' because the 'slot' slot did not respond to http ping.
+Swap failed! Verification value of slot 'Production': 01/01/0001 00:00:00.  Will retry up to 4 times more.
+```
+
+That `01/01/0001` is the tell — the production slot has never run anything. Each retry took
+**~22 minutes**, so one doomed deploy burned ~90 minutes and produced no diagnostic information
+that the first two minutes hadn't already given.
+
+Pass `-Complete $false` (or your pipeline's equivalent) so the deploy parks at
+`AwaitingVerification`. Completing later is one portal click. Only go back to auto-complete once
+you have seen *that app* boot on *that environment* at least once.
+
+### Latent bugs that only an empty database can find
+
+This is the real payoff of provisioning early. Legacy startup code that "works everywhere" often
+works only because **every environment's DB was restored from the same legacy database**. Nobody
+wrote that precondition down, so it was never tested.
+
+Real example — a leftover ASP.NET Identity migration module, dead since the site moved to Opti ID:
+
+```sql
+IF COL_LENGTH('dbo.AspNetUserLogins', 'ProviderDisplayName') IS NULL   -- guards the COLUMN
+BEGIN
+    ALTER TABLE [dbo].AspNetUserLogins ADD ProviderDisplayName varchar(255) null
+END
+```
+
+> **`COL_LENGTH` returns `NULL` when the *table* doesn't exist, not only when the column
+> doesn't.** On a DB with no `AspNetUserLogins` at all the guard *passes* and the `ALTER TABLE`
+> runs against nothing → `SqlException` **error 4902** → the init module throws →
+> `Hosting failed to start`, crash-looping (24 cycles observed) so warmup never answers.
+
+The generic form: **guard on the object you are about to touch, not on a property of it.**
+`IF OBJECT_ID('dbo.X','U') IS NOT NULL AND COL_LENGTH(...) IS NULL`.
+
+### The same assumption, two blast radii — wrap legacy data repairs in try/catch
+
+On the same boot, a *second* module hit the identical root cause (`Invalid object name
+'tblContentTypeToContentType'` — the SysRoot repair from the section above, running against a DB
+where CMS hadn't created its schema yet). It did **not** take the app down, for one reason:
+
+```csharp
+catch (Exception ex)
+{
+    // Never block application startup on this repair.
+    logger.LogError(ex, "...failed to clear SysRoot availability rows.");
+}
+```
+
+> Two modules, the same unwritten assumption, wildly different outcomes — purely because one
+> wrapped its repair in a try/catch and the other didn't. **A startup data-repair for legacy DB
+> state must never be fatal:** by definition it is fixing something that may already be absent.
+
+Audit every custom `IInitializableModule` that runs raw SQL before standing up a fresh
+environment. Cheaper than a 40-minute deploy cycle each time.
+
+### Per-environment credentials DXP injects (the list is longer than Graph)
+
+Beyond the `ContentGraph` keys noted above, **Opti ID credentials are also DXP-injected per
+environment on deployment**:
+
+```
+EPiServer__Cms__OptimizelyIdentity__{InstanceId, ClientId, ClientSecret}
+```
+
+Per Optimizely's CMS 13 Opti ID documentation: *"The system automatically provides these settings
+when the application is deployed to DXP"*, and *"You can only use keys from the integration
+environment locally."* So don't hand-manage them — but note two traps:
+
+1. **Injected values only reach the app on a NEW DEPLOYMENT.** Provisioning or rotating a service
+   writes new keys into DXP's settings; the running app keeps the old ones until you deploy. One
+   project lost two days to this, concluding an account was broken when a deploy would have fixed
+   it. Portal shows keys ≠ app has keys.
+2. **Anything that hardcodes an InstanceId will silently diverge.** A fail-closed instance gate
+   written as a literal (`o.RequiredCmsInstanceId = "abc123…"`) matches Integration and then
+   refuses writes on every other environment, while reads keep working — a confusing half-broken
+   state. Read it from config so it is right everywhere:
+   `_configuration["EPiServer:Cms:OptimizelyIdentity:InstanceId"]`.
+
+Also: the **Opti ID Enabled** toggle in Admin Center **cannot be unchecked after activation**.
+Don't click it exploratively on anything production-adjacent.
+
+### `appsettings.<Env>.json` for environments you have never deployed is probably a lie
+
+If a codebase was forked or split from a sibling project, the `Preproduction` and `Production`
+config files may never have been exercised. On one split project the Preproduction file still
+carried the **sibling project's DXP slot hostname**, the sibling's public hosts, its
+Application Insights connection string (so telemetry would land in another client's resource),
+site GUIDs transposed between two different sites, and one GUID for a site that did not exist in
+the database at all.
+
+None of it was noticed because Integration's file had been updated and Preproduction's had never
+been loaded by a running app. **Diff every per-environment config file against the live DB before
+first deploy, and trust `tblSiteDefinition` / `tblHostDefinition` over the config.**
+
+### EnvironmentSynchronizer is a WRITE on boot, not a read
+
+With `RunInitializationModuleEveryStartup: true` it rewrites site/host bindings into the database
+on **every** restart. Combined with a stale config file (above), the first boot of a new
+environment scribbles the wrong hostnames into a brand-new DB — and re-does it after every
+recycle, so hostnames configured by hand lose on the next restart.
+
+```jsonc
+"EnvironmentSynchronizer": {
+  "RunAsInitializationModule": false,   // boot the new environment INERT
+```
+
+`RunAsInitializationModule: false` is a real option in the 2.0.x assembly and is the way to
+provision an environment without letting config mutate its database. Turn it on only once the
+hosts and site GUIDs are known-correct. Verify by querying `tblHostDefinition` after boot —
+zero unexpected rows means it held.
+
+### Pipeline guard rails worth adding before you own three environments
+
+One pipeline definition with a runtime `targetEnvironment` parameter beats cloning it per
+environment (clones drift, and duplicate definitions cause double-builds). Guards that earned
+their keep:
+
+- Block a **manual** run targeting the CI-triggered environment — the push already deploys it, so
+  queueing by hand double-deploys.
+- Block an **automatic** trigger targeting Preproduction/Production, so no push can ever reach
+  production.
+- **Assert the invariant, not the branch name.** "Prepro/prod must come from the upgrade branch"
+  goes stale the moment that branch merges to `main`/`master`. Assert what you actually care
+  about instead — that the code *is* the new major version:
+  ```powershell
+  if ((Get-Content 'Web/Web.csproj' -Raw) -notmatch 'EPiServer\.Cms"\s+Version="13\.') { throw }
+  ```
+  On a mid-upgrade repo the default branch is still the OLD CMS version, so deploying it to a
+  fresh environment would initialise the wrong schema. This guard is the one that catches it.
+- Require a typed confirmation for Production. ⚠ In Azure DevOps a `string` runtime parameter
+  with `default: ''` renders as a **required** field — there is no `optional: true` — so an empty
+  default silently blocks *every* run of the pipeline, not just production ones. Give it a
+  non-empty inert default like `'no'`.
+
 ## Patch-bumping the CMS package family (13.1.0 → 13.1.1 etc.)
 
 Two things bite here, and both look fine locally.
