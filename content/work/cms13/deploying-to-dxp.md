@@ -305,6 +305,131 @@ their keep:
   default silently blocks *every* run of the pipeline, not just production ones. Give it a
   non-empty inert default like `'no'`.
 
+## Getting a DATABASE into an environment — the model is not what you'd guess
+
+DXP will not accept a database package anywhere except Integration. Both of these come straight
+from the API:
+
+```
+Start-EpiDeployment -TargetEnvironment Preproduction -DeploymentPackage <bacpac>
+  -> 400  "Direct deploy is required for database packages."
+
+Start-EpiDeployment -TargetEnvironment Preproduction -DeploymentPackage <bacpac> -DirectDeploy
+  -> 400  "Direct deploy can only be used with Integration environment."
+```
+
+Read together: **databases enter at Integration and are promoted upward.**
+
+```
+.bacpac ──direct deploy──> INTEGRATION        <- the ONLY entry point for a database
+                                │
+                                │  Start-EpiDeployment -SourceEnvironment Integration
+                                │      -TargetEnvironment Preproduction -IncludeDb -IncludeBlob
+                                │  (this is what the portal's "Copy Content" button does)
+                                v
+                          PREPRODUCTION ──same──> PRODUCTION
+```
+
+Three consequences worth planning around:
+
+1. **Refreshing content means overwriting Integration first.** If client QA runs on Integration,
+   that's a scheduling conflict. There is no way around it via the API.
+2. **Promotion carries blobs.** `-IncludeBlob` means a cross-project media migration only has to be
+   done ONCE, into Integration — not repeated per environment.
+3. **Promoting is lower risk than restoring.** The source environment's database is already migrated
+   to CMS 13, so a promotion skips the whole 12→13 first-boot gauntlet: no compatibility-level
+   upgrade, no `SysContentFolder`/SysRoot blueprint crash, no long schema migration. It also carries
+   forward per-environment fixes that a raw production bacpac would wipe — notably the CSP Settings
+   Page entries the embedded DAM depends on.
+
+### Blobs early, database late
+
+A `.bacpac` is database-only. But a database import does **not** touch blob storage, so blobs
+*survive* a database re-restore — and `azcopy sync` is incremental.
+
+> **Copy blobs early and re-sync at cutover; take the database as late as possible.** Media barely
+> changes, so the cutover blob pass moves almost nothing. Every day between the database export and
+> go-live is a day of editor changes that gets silently reverted.
+
+Also: **blobs must come from the same source environment as the database.** Blob storage uses
+per-import container GUIDs, not stable content GUIDs. Copying a *local* blob store into a cloud
+environment whose DB is a different snapshot leaves every thumbnail broken, because the paths don't
+match the DB's `BlobUri` values.
+
+### Reading DXP console logs without the portal
+
+The console-log blobs are exposed through the same storage-container API as media, so you can pull
+them with EpiCloud alone — no `azcopy`, no Azure CLI, no portal download:
+
+```powershell
+$sas = Get-EpiStorageContainerSasLink -ClientKey .. -ClientSecret .. -ProjectId .. `
+         -Environment Production -StorageContainer 'insights-logs-appserviceconsolelogs' -RetentionHours 2
+# then list the container over the Blob REST API and fetch the hour you want
+```
+
+Two traps that cost real time:
+
+* **Azure returns the container listing with a UTF-8 BOM.** `[xml]$response.Content` fails with
+  `Cannot convert value "<?xml version..."`, which reads like a malformed response or a bad SAS. It's
+  an encoding problem: `$raw.TrimStart([char]0xFEFF)` first.
+* **The blob paths are UTC.** Using local time sends you to a folder that exists but is the wrong
+  hour, so you conclude the app logged nothing.
+
+Related: .NET string literals inside assemblies are **UTF-16LE**, so grepping a DLL for an exception
+message in ASCII finds nothing and looks like proof the message doesn't exist. Search for
+`s.encode('utf-16-le')` instead — that's how you confirm whether a library really does throw the
+string you think it does.
+
+## Multi-site host bindings: three traps
+
+These are CMS-13-era and all three produce symptoms that point away from the cause.
+
+### 1. Absolute URLs come from the site's PRIMARY host, not the request host
+
+Copy a database between environments and every image and link will still be stamped with the *old*
+environment's hostname — one real case rendered **46 references** to the source environment's host,
+so the target's own (correctly copied) blob container sat unused while the browser fetched
+cross-origin and got blocked by the target's own CSP.
+
+> 🔴 Do **not** "fix" this by adding the other environment's host to the CSP. The images appear, and
+> in exchange the environment now serves *another environment's media* — and the same latent fault
+> ships onward with a different wrong host baked in. **Set the Primary binding correctly instead.**
+
+A `Default` binding is enough to route a request and return a 200. It is **not** enough to name the
+site for URL generation.
+
+### 2. New host bindings default to a DISABLED language
+
+The admin dropdown is ordered by `tblLanguageBranch.SortIndex`, and on a long-lived solution the
+*enabled* languages often sort **last**, after a dozen disabled ones. So the default selection is a
+disabled language, and a host bound to a language with no content returns a **bare 404 with nothing
+in the logs** explaining it. Check `SELECT LanguageID, Enabled FROM tblLanguageBranch` and match the
+value other working bindings use.
+
+### 3. One hostname can only be Default/Primary/Redirect on ONE site per instance
+
+```
+"Hostname must be unique for host types: Default, Primary, or Redirect."
+```
+
+So a single DXP slot hostname **cannot serve a multi-site environment** — it goes to one site and the
+others are unreachable until real DNS exists.
+
+> **Corollary for planning: hostname provisioning blocks non-production QA, not just go-live.** On a
+> multi-site solution, every site beyond the first cannot be reviewed on a lower environment at all
+> until its hostname is provisioned. Budget the client/DNS lead time accordingly.
+
+### Declare bindings in config, not in admin
+
+`EnvironmentSynchronizer` makes `appsettings.<Env>.json` authoritative — but it is a **write on
+boot**: with `RunInitializationModuleEveryStartup: true` it rewrites bindings on every restart and
+silently overwrites admin edits. Get the config right *before* enabling it, and after that treat
+admin edits as temporary.
+
+🟠 Watch for `"ScheduledJobs": [{ "Id": "*", "IsEnabled": false }]` in those files — once EnvSync is
+active that disables **every** scheduled job on each boot, including Graph synchronisation, so search
+silently stays empty. Manual runs still work.
+
 ## Patch-bumping the CMS package family (13.1.0 → 13.1.1 etc.)
 
 Two things bite here, and both look fine locally.

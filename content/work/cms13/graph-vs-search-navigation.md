@@ -58,6 +58,51 @@ The conceptual explainer: **how Optimizely Graph works as a system**, and how th
 - **Re-indexing is an operational step, not a one-time thing.** New environment = empty index = run the full re-index job. This bites people who copy a database and wonder why search returns nothing. → see the re-index gotcha in [[graph-sdk|Graph C# SDK]].
 - **Migrate during the CMS 13 upgrade, not before.** The Graph schema changed between CMS 12 and 13; implementing Graph on CMS 12 first means migrating twice. → [[search-to-graph|Search & Navigation → Graph Migration]].
 
+## Migrating off Find: what you lose, and what you only *think* you lose
+
+Two Find features get written off as "dies with the index, capture it before you upgrade". Only one
+of those is true, and getting it wrong distorts an upgrade schedule.
+
+### Best Bets SURVIVE — they're in the database, not the index
+
+Best Bets are **Dynamic Data Store rows**, so they travel with a `.bacpac` and can be extracted with
+SQL at any point afterwards. Check before treating them as a hard deadline:
+
+```sql
+SELECT COUNT(*) FROM [VW_EPiServer.Find.Framework.BestBets.BestBet];
+SELECT DISTINCT Phrase FROM [VW_EPiServer.Find.Framework.BestBets.DefaultPhraseCriterion];
+SELECT Url FROM [VW_EPiServer.Find.Cms.ExternalUrlBestBetSelector];
+SELECT * FROM [VW_EPiServer.Find.Cms.PageBestBetSelector];
+```
+
+On one real solution the recorded assumption was "2 Best Bets, both external URLs". The database held
+**37 rows / ~45 distinct phrase sets across 38 Find indexes** — the earlier count had been one site's
+subset. So the finding cut both ways: **less urgent** (no deadline, the data persists) but
+**significantly more work** than scoped.
+
+Two things to know when you inventory them:
+
+* **Rows are duplicated per Find index** (one per site per environment), so raw row counts overstate
+  the distinct inventory. Group by `IndexId`.
+* **On a multi-brand or shared-database solution, a chunk of them may not be yours.** In that case
+  roughly a third targeted a corporate SharePoint intranet — `jobs/career/employment`, `workday`,
+  `medical coverage`, `retiree dental` — which belonged to a *different* platform sharing the same
+  database, and should not be migrated. Split the inventory by target host before quoting the work.
+
+What they're typically *worth* migrating for: on a product-catalogue site the valuable ones are SKU
+and datasheet shortcuts — a product code plus its spelling variants, or a safety-datasheet synonym
+set (`safety data sheet` / `sds` / `msds`) pointed at one canonical page. Those are the queries where
+a user types an identifier rather than a phrase, and full-text relevance alone won't rank the right
+page first. Losing them is a genuine search regression, not cosmetic — so they need a CMS 13
+equivalent decided, not just an export.
+
+### Find search-statistics history genuinely does die
+
+Query volumes, no-hit terms, click-through history — that's index-side telemetry with no DDS
+equivalent, and it is **not** recoverable after the Find index goes away. If anyone wants a
+before/after search-quality comparison, export it *before* the upgrade. This half of the "capture it
+first" advice is correct.
+
 ## Don't confuse "Graph the API surface" with these
 
 - **The C# query API** (`IGraphContentClient`, `.Where()`, `.Facet()`, etc.) — that's the SDK, documented in [[graph-sdk|Graph C# SDK]].
