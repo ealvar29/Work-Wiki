@@ -85,14 +85,20 @@ Forms shows validation errors by **toggling a CSS class**. An inline `style="dis
 * Licensing is **contradictory** — the README badge says Apache 2.0, `build/props/common.props` says *"© 2003-2020 by Optimizely. All rights reserved"* with `PackageLicenseUrl` pointing at the EPiServer EULA. Treat the source as a specification to read, not code to copy.
 * Optimizely support confirmed *"no official announcement or timeline for a CMS 13-specific release"* — then, in the same reply, advised installing it. Ignore the second half.
 
+> **Roadmap update — Optimizely engineering, 2026-09-08.** *"We have a plan to migrate `EPiServer.Forms.Samples` to CMS 13, but this hasn't been prioritized so far. I will discuss this with our PM, and we'll start working on it ASAP if possible."*
+>
+> So the package is **not abandoned — it is unscheduled.** That is a real distinction, but it changes nothing you should *plan* around: there is still no version, no date, and no commitment. Scope a CMS 13 upgrade as though Samples will never arrive, and treat its eventual release as an opportunity to delete your shims, not as a dependency. If a client's upgrade genuinely hinges on it, that is a reason to raise a support ticket and add weight to the prioritisation — not a reason to wait.
+
 ### What that takes with it
 
-| Element | Core Forms 6.0.0 equivalent |
-| --- | --- |
-| `RecaptchaElementBlock` (Google reCAPTCHA **v3**) | ❌ none |
-| `HcaptchaElementBlock` | ❌ none |
-| `DateTimeElementBlock` | ❌ **none — no date element at all** |
-| `AddressesElementBlock` | ❌ **none — no address element at all** |
+| Element | Core Forms 6.0.0 equivalent | Returns when Samples ships? |
+| --- | --- | --- |
+| `RecaptchaElementBlock` (Google reCAPTCHA **v3**) | ❌ none | ✅ yes — confirmed |
+| `HcaptchaElementBlock` | ❌ none | not mentioned |
+| `DateTimeElementBlock` | ❌ **none — no date element at all** | ✅ yes — confirmed |
+| `AddressesElementBlock` | ❌ **none — no address element at all** | ✅ yes — confirmed |
+
+Optimizely engineering confirmed (2026-09-08) that reCAPTCHA, `DateTimeElementBlock` and `AddressesElementBlock` all live in Samples and *"once the package is upgraded to CMS 13, customers can use it."* **All three are blocked on the same unscheduled package** — so they are one dependency, not four separate gaps. Useful when a client asks why the date picker and the captcha vanished together.
 
 Core Forms 6.0.0 ships: Captcha, Choice, FileUpload, ImageChoice, Number, ParagraphText, PredefinedHidden, Range, ResetButton, Selection, SubmitButton, Textarea, Textbox, Url, VisitorDataHidden.
 
@@ -150,6 +156,27 @@ FROM tblContentType ct LEFT JOIN tblContent c ON c.fkContentTypeID = ct.pkID
 WHERE ct.ModelType LIKE '%Forms.Samples%'
 GROUP BY ct.Name, ct.ContentTypeGUID ORDER BY Items DESC;
 ```
+
+### Optimizely's endorsed procedure
+
+Engineering confirmed this in writing on **2026-09-08**, and named the principle it follows — it is the same one documented for **content-type refactoring / orphaned content types**: *matching the original GUID causes CMS to associate the existing content type and data with the replacement class, rather than creating a new content type.* Reference: [Refactor content type classes](https://docs.developers.optimizely.com/content-management-system/docs/refactoring-content-type-classes) (written for CMS 12, mechanism unchanged).
+
+Their recommended order, verbatim in substance:
+
+1. **Back up the database**, and do the whole thing on Integration first.
+2. Identify the original content type GUID.
+3. Create a minimal stub class using **the same GUID**.
+4. Set `AvailableInEditMode = false` so editors cannot create new instances of the obsolete type.
+5. Deploy the stub.
+6. Verify the existing content items are now recognised by the CMS.
+7. Delete the obsolete instances — or migrate them to a supported type if they hold data worth keeping.
+8. Once no instances remain, **remove the stub class**.
+9. Confirm the obsolete content type is no longer needed.
+
+Two things worth pulling out of that list:
+
+* **Step 8 is the part teams forget.** A stub is scaffolding, not architecture. Left in place it becomes a permanent fake type that new developers assume is real — and `AvailableInEditMode = false` hides it well enough that nobody notices. Track the deletion, and re-run the SQL count above to prove it is safe.
+* **Direct database manipulation is the fallback, not the method.** Optimizely was explicit: *"Direct database manipulation should only be considered as an advanced fallback."* Editing `tblContentType.ModelType` by hand gets to the same place and skips every safety check the CMS would have applied.
 
 ### Two traps in the shim itself
 
