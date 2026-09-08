@@ -263,9 +263,21 @@ width=480,height=640,format=auto,fit=cover,gravity=auto  200   41,155 bytes   (3
 2. **Transformations are billed.** Adding a height multiplies unique variants (widths × ratios). Check the cost before rolling it across every slot.
 3. **Smart gravity is good, not perfect.** It will occasionally crop badly. The fix is a per-image focal-point override — worth adding *later*, when a real example justifies it, not up front.
 
-### When you genuinely do need per-image renditions
+### Per-image rendition selection is BLOCKED on CMS 13 — don't scope it
 
-Only if the client needs to *choose* a specific rendition per image. That needs (a) rendition metadata proven reachable, (b) somewhere to store the per-image choice, and (c) a **custom property editor** — on CMS 13 the same UI surface that has produced a string of regressions. Expensive and fragile. Get written confirmation from Optimizely that renditions are addressable per asset before starting.
+🔴 **The CMS refuses a rendition even though the DAM picker offers one.** Measured on CMS 13.1.x, 2026-09-08:
+
+**Repro:** any image property → *Select Content* → DAM selection → pick a **rendition** (not the original) → **Choose Image** → back in the CMS window a red banner appears:
+
+```
+Renditions cannot be used. Please select an original asset.
+```
+
+The rejection happens at **selection** time, so the reference is never persisted and never reaches your mapping layer. No `AllowedTypes` change, view-model retype, or type converter can affect it — there is nothing to resolve. This is consistent with the assembly evidence above: `EPiServer.Cms.DamIntegration.UI` and `.CmpClient` contain no rendition type at all, so the integration has no concept of a rendition reference to hand you.
+
+**Consequence:** per-image rendition selection is not "expensive", it is **unavailable**. Do not estimate it, and do not promise it to a client. Raise a support ticket asking whether it is supported or roadmapped, and in the meantime use the CDN cropping route above — which is not merely cheaper, it is the *only* route to automatic cropping on CMS 13 today.
+
+**If the client wants editor control** — "if the crop looks wrong, let me choose another" — give them that on **your** side rather than the DAM's: a plain aspect-ratio choice (and later a focal point) on your own image property, applied through the CDN. An enum with a selection factory is an ordinary CMS property, **not** a custom Dojo/React editor, so it stays cheap. Same editor experience, none of the platform dependency.
 
 > **The trap:** hearing "renditions" and building the picker, when the client said "we want to avoid cropping manually" — which the CDN already does, today, for a parameter change.
 
