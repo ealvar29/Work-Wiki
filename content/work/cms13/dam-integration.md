@@ -198,6 +198,45 @@ is the Optimizely **CMP/DAM** signature. Confirm with the response headers (no n
 
 The combination — CMP `/download/assets/.../{guid}?attachment=false` URL **plus** Cloudflare-fronted **plus** GCS (`x-goog-*`) origin — is the reliable tell. Cloudflare or GCS alone is not conclusive. (A branded host like `assets.<client>.com` is just a CNAME to CMP's CDN; the host name alone proves nothing.)
 
+## Renditions — what is and isn't possible
+
+The question every client eventually asks: *"when selecting an image from the DAM, can we pick a rendition instead of the original asset?"* Two very different things hide inside it, and conflating them wastes a sprint.
+
+| Goal | Mechanism | Whose job | Effort |
+| --- | --- | --- | --- |
+| Ship an appropriately **sized** image | CDN resize-on-the-fly (Cloudflare `/cdn-cgi/image/width=…`) | yours | usually **already done** |
+| Editor picks a specific **crop / aspect** | a DAM rendition, chosen per image | **not supported by the CMS 13 picker** | see below |
+
+### Sizing is almost certainly already solved — check before building anything
+
+If your `<img>` markup carries a `srcset` of width variants, the browser is already downloading a derivative rather than the multi-megabyte original. DAM originals are big — a sampled asset was 8256×5504, ~30 MB — so this matters, but a CDN image-resizing layer in front of the asset host handles it without touching renditions at all.
+
+**Check the rendered markup before scoping any work.** A DAM asset serving `width=240 … width=1920` candidates needs nothing further for file size.
+
+⚠️ **Coverage caveat:** that only applies where your view-model property is a *renderable-image abstraction* that runs the srcset builder. Any property still typed as the CMS media class (`ImageFile`) resolves a DAM asset to **null** and renders nothing at all — see [[work/cms13/dam-integration#a-dam-asset-is-selected-saves-fine-and-renders-nothing]]. Converting those properties buys more real-world page weight than renditions would.
+
+### The CMS 13 DAM picker cannot return a rendition
+
+Measured against `EPiServer.Cms.DamIntegration.UI` and `EPiServer.Cms.DamIntegration.CmpClient` (13.x) by enumerating their type definitions: **there is no `Rendition`, `Crop`, or `Variant` type anywhere in either assembly.** What exists is asset-shaped:
+
+```
+ICmpAssetClient.GetAssetMetadataById<T>()      ← generic metadata fetch, the only real hook
+DamAssetType / DamAssetTypeResolver
+DamImageAssetFeature / DamVideoAssetFeature / DamRawFileAssetFeature
+DamContentThumbnailTransform                   ← editor thumbnails, not delivery renditions
+CmpAssetContentSourceProvisioner               ← provisions the Graph `cmp` content source
+```
+
+**The CMS-side integration models assets, not renditions.** Renditions are a CMP-side concept, surfaced through Graph on the asset type (e.g. `cmp_PublicImageAsset`) — named sets like Banner 1920 / CONTENT-LARGE 1400 / CONTENT-MEDIUM 800 / CONTENT-SMALL 480. Reachable for *rendering*, not selectable in the *picker*.
+
+### So the options, cheapest first
+
+1. **Editor picks a pre-cropped asset.** Do the crop in the DAM, where the cropping tools already are, and let it be its own asset. **Zero code.** For "we want a square crop of this hero", this is nearly always the right answer, and it keeps the crop decision with the person making the editorial judgement.
+2. **Automatic rendition selection by width.** Carry the rendition list through your media-resolution layer and pick the smallest ≥ the intended render width. Moderate work — but if a CDN resizer is already in front of the assets, the marginal benefit is close to zero.
+3. **A per-image rendition selector in the editor.** Needs (a) rendition metadata proven reachable, (b) somewhere to store the per-image choice, and (c) a **custom property editor** — which on CMS 13 is the same UI surface that has produced a string of regressions. Expensive and fragile. Don't start it on an assumption; get written confirmation from Optimizely that renditions are addressable per-asset first.
+
+> **The trap to avoid:** hearing "renditions" and building option 2 or 3 when the client actually wanted option 1. Ask which problem they have — file size or framing — before estimating. If it's framing, option 1 usually ends the conversation.
+
 ## Migrating Existing Media into the DAM
 
 There is **no out-of-the-box Optimizely tool** that re-links existing references for a **first-time DAM adoption** (moving from local CMS media → DAM). Confirmed by Optimizely Support:
