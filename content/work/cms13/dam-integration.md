@@ -229,13 +229,45 @@ CmpAssetContentSourceProvisioner               ← provisions the Graph `cmp` co
 
 **The CMS-side integration models assets, not renditions.** Renditions are a CMP-side concept, surfaced through Graph on the asset type (e.g. `cmp_PublicImageAsset`) — named sets like Banner 1920 / CONTENT-LARGE 1400 / CONTENT-MEDIUM 800 / CONTENT-SMALL 480. Reachable for *rendering*, not selectable in the *picker*.
 
-### So the options, cheapest first
+### Ask what "renditions" is standing in for — the answer changes everything
 
-1. **Editor picks a pre-cropped asset.** Do the crop in the DAM, where the cropping tools already are, and let it be its own asset. **Zero code.** For "we want a square crop of this hero", this is nearly always the right answer, and it keeps the crop decision with the person making the editorial judgement.
-2. **Automatic rendition selection by width.** Carry the rendition list through your media-resolution layer and pick the smallest ≥ the intended render width. Moderate work — but if a CDN resizer is already in front of the assets, the marginal benefit is close to zero.
-3. **A per-image rendition selector in the editor.** Needs (a) rendition metadata proven reachable, (b) somewhere to store the per-image choice, and (c) a **custom property editor** — which on CMS 13 is the same UI surface that has produced a string of regressions. Expensive and fragile. Don't start it on an assumption; get written confirmation from Optimizely that renditions are addressable per-asset first.
+The question is almost never really about renditions. Pin down which of these they want:
 
-> **The trap to avoid:** hearing "renditions" and building option 2 or 3 when the client actually wanted option 1. Ask which problem they have — file size or framing — before estimating. If it's framing, option 1 usually ends the conversation.
+* **"Our pages are slow / images are huge."** → CDN width variants. Usually already done.
+* **"We don't want to hand-crop every image."** → **automatic cropping.** This is the common one, and renditions are *not* the cheapest way to get it. See below.
+* **"This specific photo needs a different crop from the automatic one."** → per-image art direction, the genuinely expensive case.
+
+### Automatic cropping: do it in the CDN, not with renditions
+
+🟢 **A CDN image resizer can crop, not just scale** — and if you already have one in front of the asset host for sizing, cropping is a parameter change rather than a project.
+
+The default most implementations emit is a *scale* (`fit=scale-down`), which preserves aspect ratio and therefore **cannot** produce a 1:1 or 16:9 frame from a 3:2 original. Switching to a **cover fit with an explicit height** does, and a smart-gravity option picks the focal point automatically.
+
+Verified against an Optimizely DAM delivery host (`/cdn-cgi/image/…`), all HTTP 200 with distinct payloads, i.e. genuinely different geometry rather than a silently ignored height:
+
+```
+width=480,format=auto,fit=scale-down                     200   24,851 bytes   (baseline, uncropped)
+width=480,height=480,format=auto,fit=cover               200   32,802 bytes   (1:1)
+width=480,height=480,format=auto,fit=cover,gravity=auto  200   32,835 bytes   (1:1, smart crop)
+width=1600,height=900,format=auto,fit=cover,gravity=auto 200  150,571 bytes   (16:9)
+width=480,height=640,format=auto,fit=cover,gravity=auto  200   41,155 bytes   (3:4)
+```
+
+**Why this beats renditions for automatic cropping:** arbitrary ratios instead of a fixed named set, no dependency on a rendition existing on every asset, no Graph query, no custom property editor, no vendor roadmap dependency — and it is the same code path as ordinary CMS media, so non-DAM images get it too.
+
+**The aspect ratio belongs to the SLOT, not the image.** A hero wants 16:9, a card 4:3, a profile 1:1 — the same asset is cropped differently depending on where it renders. So carry the ratio through the same view-level channel you already use for the `sizes` hint, not as a property on the media.
+
+⚠️ Three cautions:
+
+1. **Keep `fit=scale-down` as the default and make cropping opt-in per slot.** A logo asked for at 16:9 gets mangled, and scale-down is also what guarantees no upscaling past the source.
+2. **Transformations are billed.** Adding a height multiplies unique variants (widths × ratios). Check the cost before rolling it across every slot.
+3. **Smart gravity is good, not perfect.** It will occasionally crop badly. The fix is a per-image focal-point override — worth adding *later*, when a real example justifies it, not up front.
+
+### When you genuinely do need per-image renditions
+
+Only if the client needs to *choose* a specific rendition per image. That needs (a) rendition metadata proven reachable, (b) somewhere to store the per-image choice, and (c) a **custom property editor** — on CMS 13 the same UI surface that has produced a string of regressions. Expensive and fragile. Get written confirmation from Optimizely that renditions are addressable per asset before starting.
+
+> **The trap:** hearing "renditions" and building the picker, when the client said "we want to avoid cropping manually" — which the CDN already does, today, for a parameter change.
 
 ## Migrating Existing Media into the DAM
 
