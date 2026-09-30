@@ -43,6 +43,14 @@ Required in `_ViewImports.cshtml`:
 
 The new component uses fixed positioning — add `padding-top: 56px` to your content wrapper.
 
+**The editor also moved to `/ui/cms`.** Every CMS 12 path is gone:
+
+| CMS 12 | CMS 13 |
+|---|---|
+| `/episerver`, `/episerver/cms`, `/Optimizely/CMS/` | `/ui/cms` |
+
+The old paths 302 to `/` or 404, which presents as *"editor login is broken"* rather than *"wrong URL"* — a healthy OIDC challenge is still being issued, just not from where you're looking. Update bookmarks, editor documentation, and any `robots.txt` still disallowing `/episerver`.
+
 ## 3. SiteDefinition → Applications
 
 | Removed | Replacement |
@@ -135,9 +143,22 @@ Replacement: implement `IMenuProvider` or `IAsyncMenuProvider`
 services.AddVisitorGroups();
 
 // CMS 13
+using EPiServer.Cms.UI.VisitorGroups;   // required — see below
+
 services.AddVisitorGroupsMvc().AddVisitorGroupsUI();
 // Package: EPiServer.Cms.UI.VisitorGroups
 ```
+
+The two calls come from **two different packages**, and only the second one is new:
+
+| Call | Assembly | Already present? |
+|---|---|---|
+| `AddVisitorGroupsMvc()` | `EPiServer.Cms.AspNetCore.Mvc` | Yes — arrives transitively with `EPiServer.Cms` |
+| `AddVisitorGroupsUI()` | `EPiServer.Cms.UI.VisitorGroups` | No — add the `PackageReference` |
+
+`AddVisitorGroupsUI` is declared on `EPiServer.Cms.UI.VisitorGroups.ServiceCollectionExtensions`, **not** `EPiServer.DependencyInjection` where the other `Add*` builders live. Without that using, only the second call fails to compile — a half-error that reads like a bad package reference rather than a missing namespace.
+
+Until this is wired, "Visitor Groups" is simply **absent from the CMS menu**, with no error anywhere. See [[post-upgrade-gotchas#visitor-groups-is-missing-from-the-cms-menu|Post-Upgrade Gotchas]].
 
 ## 13. Async REST/Context Services
 

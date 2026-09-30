@@ -58,6 +58,47 @@ The conceptual explainer: **how Optimizely Graph works as a system**, and how th
 - **Re-indexing is an operational step, not a one-time thing.** New environment = empty index = run the full re-index job. This bites people who copy a database and wonder why search returns nothing. → see the re-index gotcha in [[graph-sdk|Graph C# SDK]].
 - **Migrate during the CMS 13 upgrade, not before.** The Graph schema changed between CMS 12 and 13; implementing Graph on CMS 12 first means migrating twice. → [[search-to-graph|Search & Navigation → Graph Migration]].
 
+### Full Synchronization is minutes, not hours — measure it before you budget for it
+
+Cutover runsheets routinely reserve an open-ended window for the full re-index because nobody has timed it. Measured on the same day across three DXP environments, each holding ~27,650 content items:
+
+| Environment | Full Synchronization |
+|---|---|
+| Integration | 5 m 53 s |
+| Preproduction | 6 m 02 s |
+| Production | 5 m 41 s |
+
+It was the last unmeasured step in that runsheet and turned out to be the cheapest. **~1,480 warnings per run are benign** — orphaned content-area references and oversized PDFs skipped for text extraction. Don't read the warning count as a failure.
+
+Which job to run:
+
+| Job | Use when |
+|---|---|
+| **Full Synchronization** | The index is empty — a new environment, or straight after a Graph re-provision |
+| **Delta** | Journal-based; needs prior state, so useless on an empty index |
+| **Smooth Rebuild** | Rebuild-then-swap on an already-populated index — the one that keeps search answering while it runs |
+
+### 🔴 A Graph 401 at boot usually means "deploy", not "the account is broken"
+
+Disabling and re-enabling the Graph Service **re-provisions credentials, but DXP injects them into `Optimizely__ContentGraph__*` only on a NEW DEPLOYMENT** (confirmed via Optimizely support). The running app keeps the pre-rotation keys, which the gateway has already invalidated → 401 in `EnsureSchemaInitializationModule` → `Hosting failed to start`. One project lost two days concluding its account was broken.
+
+The diagnostic distinguishes the two cases in about a minute — `az` shows what the **running app** has, the portal shows what is **provisioned**:
+
+```bash
+az webapp config appsettings list -g <rg> -n <app> \
+  --query "[?contains(name,'graph')].{n:name,v:value}"
+
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "https://cg.optimizely.com/content/v2?auth=<singlekey>" \
+  -H 'Content-Type: application/json' -d '{"query":"{__typename}"}'
+```
+
+| App-setting key | Provisioned key | Meaning |
+|---|---|---|
+| 401 | 200 | Stale injection — **a deploy fixes it** |
+| 401 | 401 | Real provisioning problem — escalate |
+
+Note the cost of the toggle itself: re-provisioning starts from an **empty** source, so search stays broken until a Full Synchronization finishes. It needs a window, not a casual click.
+
 ## Migrating off Find: what you lose, and what you only *think* you lose
 
 Two Find features get written off as "dies with the index, capture it before you upgrade". Only one
