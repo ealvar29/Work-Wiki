@@ -130,7 +130,9 @@ That's the old site GUID with hyphens replaced by underscores. `DisplayName` car
 Two consequences:
 
 1. **Any code or addon matching sites by friendly name or by `Guid` will silently match nothing.** The legacy `ISiteDefinitionRepository.List()` shim returns `SiteDefinition.Id == Guid.Empty` with these synthetic names, so `Guid`-based lookups fail without error.
-2. **Environment-config addons can become silent no-ops.** `Addon.Episerver.EnvironmentSynchronizer` (2.0.1) matches sites by `Id` through that shim and writes to the legacy tables. On CMS 13 it logs `SiteDefinitionSynchronizer initialized` and then does **nothing** — no error, no warning. If you rely on it to apply per-environment hostnames and `SiteUrl`, **your host config is unmanaged on every environment**, and you'll discover it at promotion.
+2. **Environment-config addons look like silent no-ops — but they are not inert.** `Addon.Episerver.EnvironmentSynchronizer` (2.0.1) matches sites by `Id` and logs `Could not find application <name>.` before writing zero hosts, with no error and no warning. The cause is the `Id` value, not the addon: see **[Feed EnvironmentSynchronizer the synthetic name](#feed-environmentsynchronizer-the-synthetic-name-not-a-guid)** below. Given the right name it writes, on every environment, on every boot.
+
+> ⚠️ An earlier revision of this page concluded EnvironmentSynchronizer "does **nothing**" on CMS 13. That was wrong, and wrong in the dangerous direction — it reads as *your config is inert*, when in fact a correct entry is a **write** that will also **delete** hostnames you did not list. Corrected after it was measured writing on all three environments of a live estate.
 
 ### Diagnostic queries
 
@@ -158,6 +160,53 @@ violates the following Content Security Policy directive: "img-src blob: 'self' 
 Absolute URL, wrong host, so `'self'` didn't match. It looked like a CSP policy gap. It wasn't: one application's **Primary** (`Type = 1`) host in `tblApplicationHost` was set to the **DXP slot hostname with a stray `www.` prefix**. Absolute-URL generation used it whenever site context was ambiguous. Pure config error, fixable in the admin UI with no deploy — but only findable in the right table.
 
 Check `Type = 1` rows across all applications after any upgrade or environment clone. A slot hostname (`*.dxcloud.episerver.net`) should never be a Primary host.
+
+## Feed EnvironmentSynchronizer the synthetic name, not a GUID
+
+`Addon.Episerver.EnvironmentSynchronizer` 2.0.1 works fine on CMS 13. What breaks is the `"Id"` value, and the failure is silent.
+
+**`"Id"` is `Application.Name`** — on CMS 13 that is the synthetic form, not a bare GUID:
+
+```jsonc
+"EnvironmentSynchronizer": {
+  "SiteDefinitions": [{
+    "Id": "Site_0E96B85F_3A5A_4C59_AD6A_6C42FE661899",  // NOT 0e96b85f-3a5a-…
+    "SiteUrl": "https://int.example.com/",
+    "Hosts": [ /* … */ ]
+  }]
+}
+```
+
+Derive it mechanically — `'Site_' + UPPER(REPLACE(UniqueId,'-','_'))` — or just read the real values out of the target environment:
+
+```sql
+SELECT pkID, Name, DisplayName FROM tblApplication;
+```
+
+Because it derives from a GUID that never changes, the value **survives database restores**. That is the whole reason to declare bindings in config rather than fix them in admin after every promotion.
+
+Five behaviours that are not obvious from the README:
+
+| Behaviour | Consequence |
+|---|---|
+| `"Id"` and `"name"` are an **if/else, not an OR** — *"If this is provided it will ignore the Name attribute"* | A wrong `"Id"` is **not** rescued by a correct `"name"` |
+| **Hosts are REPLACED, not merged** | Every host the site needs must be listed — including the DXP slot hostname and any `prep.*`/`prod.*` name used before DNS moves — or it is **removed** on the next boot |
+| A name miss is a **silent no-op** | Logs `Could not find application <name>.` and writes zero hosts. Grep boot logs for that, plus `Refusing to clear hosts for` and `Updated total of ` |
+| **Unlisted applications are left alone** | A partial config is safe. Sites that ride in on a restore with correct bindings need no entry at all |
+| `"name"` is a **WRITE** | Once matched it overwrites `DisplayName`. An environment-prefixed label silently renames the site in the CMS UI for editors |
+
+### 🔴 Turn it OFF on production once the database stops being replaced
+
+EnvironmentSynchronizer earns its keep where the DB is replaced regularly — non-production environments that get restored from a production copy. Production is the opposite: after cutover its database is never overwritten again, so **there is nothing for config to re-assert** — and because hosts are replaced rather than merged, it was **deleting hostnames editors had added in admin on every restart**.
+
+```jsonc
+// appsettings.Production.json, after cutover
+"EnvironmentSynchronizer": {
+  "RunAsInitializationModule": false   // and drop SiteDefinitions entirely
+}
+```
+
+After that, **production bindings are whatever production CMS admin says.** Edit them there, not in config. Sites created in admin post-cutover also get a plain API ID (`benefits`) rather than the synthetic `Site_<GUID>` form — and **tell editors not to change it**, because a rename silently disconnects any config entry pointing at it.
 
 ## Sources
 
