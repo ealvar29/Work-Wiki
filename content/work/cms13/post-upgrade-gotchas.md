@@ -649,6 +649,79 @@ That single comparison kills "`PropertyList` is broken on CMS 13" and pins it to
 
 **Search impact.** A property that cannot be read never reaches `_fulltext` either — see [[work/cms13/search-to-graph|Search & Navigation → Graph Migration]]. Fix content loading before you benchmark search recall.
 
+### "Visitor Groups" Is Missing From the CMS Menu
+
+**Symptom:** After the upgrade there is no Visitor Groups option anywhere in the CMS. It isn't in the Opti ID Admin Center either. It reads like a removed feature or a licensing problem.
+
+**Root cause:** Neither. CMS 13 decoupled Visitor Groups from the `EPiServer.Cms` metapackage to keep the default install modular. Confirmed by Optimizely Support (Sept 2026). The runtime half may still be half-wired — `VisitorGroupOptions` binds fine and criteria still evaluate — so the only thing actually missing is the authoring UI, which makes it look like a UI bug rather than an absent package.
+
+**Fix:** Reference the package and register **both** halves. They come from two different assemblies, which is the part that costs you a build:
+
+```xml
+<PackageReference Include="EPiServer.Cms.UI.VisitorGroups" Version="13.1.3" />
+```
+
+```csharp
+using EPiServer.Cms.UI.VisitorGroups;   // ← NOT EPiServer.DependencyInjection
+
+services
+    .AddCms()
+    .AddCmsCoreWeb()
+    .AddVisitorGroupsMvc()   // EPiServer.Cms.AspNetCore.Mvc — already in the graph
+                             // transitively. Criteria evaluation + impersonation.
+    .AddVisitorGroupsUI();   // the new package. Management screen + criteria editors.
+```
+
+`AddVisitorGroupsUI` is declared on `EPiServer.Cms.UI.VisitorGroups.ServiceCollectionExtensions`, **not** the `EPiServer.DependencyInjection` namespace every other `Add*` builder lives in. Only that half fails to compile, which is a confusing half-error — `AddVisitorGroupsMvc()` resolves with no new using because its package was already there.
+
+**Version-lock check:** the 13.1.3 nuspec's only EPiServer dependency is `EPiServer.Cms.Shell.UI` pinned at exactly `[13.1.3]`. If your CMS family is already on 13.1.3 this adds **no** new transitive EPiServer packages — an unusually safe add for this family.
+
+**Verify beyond the build.** The package ships a protected shell module, and a missing module is a menu that silently doesn't appear rather than a crash:
+
+```
+bin/<Config>/net10.0/modules/_protected/VisitorGroups/VisitorGroups.zip
+```
+
+> **Don't reach for this as access control.** Visitor Groups personalise what renders; they do not gate it. Permission-gating pages or assets for an external audience needs a second ASP.NET Core authentication scheme (e.g. cookie auth) alongside Opti ID, driven by normal authorization policies or controller attributes. That is a build, not a config change.
+
+### A Component That Can't Finish Rendering Looks Like a *Different* Component
+
+**Symptom:** Two Optimizely headers appear stacked in the editor UI, one of them half-drawn. It reads as a CSS or z-index conflict between two shell components.
+
+**Root cause:** One component, stuck mid-initialisation. A strict CSP was blocking `usermgmt-api.optimizely.com` in `connect-src`, so the header's user-management call never returned and it never completed its render — leaving a partial header sitting above the finished one.
+
+**Fix:** Allow `usermgmt-api.optimizely.com` in `connect-src`.
+
+**The transferable lesson is the diagnostic one.** A blocked network request does not present as an error in the layout; it presents as a layout bug. When a piece of editor chrome looks duplicated, misplaced or half-styled, read the browser console and network tab **before** reading the CSS. This one was written off twice as "cosmetic, not CSP" and was CSP both times.
+
+### The New-Block Dialog Offers Every Block Type, Ignoring `[AllowedTypes]`
+
+**Symptom:** A ContentArea restricted to a single concrete block type offers the editor all of them in the new-block dialog. Editors create content that the property will not accept.
+
+**Root cause:** A platform bug (**CMS-54881**), not your type model. Fixed in **13.1.3**.
+
+**Fix:** Bump the CMS family to 13.1.3 or later.
+
+> 🔴 **Do not "fix" this by editing your marker interfaces.** The obvious-looking response — give `IHeroBlock` / `IContentBlock` a different base so the picker narrows — treats the symptom and reintroduces a separate bug class where a marker interface without an `IContentData` base 500s the content picker. Confirm the platform version before redesigning your content model around a dialog's behaviour.
+
+### After Any Production Deploy or Restart, Check for Cold-Start Cache Poisoning
+
+**Symptom:** A page renders with one property mysteriously empty on *some* requests and correct on others. No visitor-facing error, nothing in the CMS UI that looks wrong, and it does not reproduce on a single-instance environment.
+
+**Root cause:** On a multi-instance environment every instance restarts together and warms up at once. A warmup-time SQL timeout makes EPiServer log:
+
+```
+warn: ContentDB — Could not load data for property 'X' on content with id 'N'
+```
+
+…and then **cache that content with the property empty** on the instance that timed out. The other instance has it right. It is a race, not a data problem.
+
+**Fix:** **Republish the affected content.** The publish event invalidates the cache on every instance.
+
+**Do NOT restart to clear it** — a restart re-runs exactly the same warmup race and can poison a different property instead.
+
+**Finding it:** grep the console log for `Could not load data for property`, then request each reported id several times, splitting responses by the `ARRAffinity` cookie so you can compare the instances against each other. Anything that averages over instances will show you a page that works.
+
 ## Tooling
 
 ### Visual Studio 2022 Requires Version 17.13+ for .NET 10
