@@ -209,6 +209,67 @@ if (targetElements) { … }        // never guarded anything
 
 An unhandled exception in a module's `init()` is a **silent feature-disabler** — everything registered after the throw never happens. The symptom is "nothing happens", not an error, and it looks intermittent because it depends which page you are on.
 
+## `AddForms()` is no longer optional
+
+Forms 5.x registered its services through `[ServiceConfiguration]` attributes, so a CMS 12 project that never called anything still got `FormsEvents` and friends. **Forms 6 dropped the attribute-based registration.** Call it explicitly:
+
+```csharp
+services.AddForms();
+```
+
+Miss it and you don't get a startup error — you get missing behaviour later, at the point something resolves a Forms service that was never registered.
+
+## `XhtmlRenderService` is a captive dependency — forms silently lose content under load
+
+The nastiest Forms 6 bug found so far, because every symptom is swallowed and every response is still **HTTP 200**.
+
+**Symptom:** under concurrency, a small fraction of form renders come back missing an element — a paragraph, a label, a privacy notice. Measured at **3 of 120 concurrent requests** to a single page. No error to the visitor, no failed request, nothing in APM. Single-threaded testing never reproduces it.
+
+**Root cause — a classic captive dependency.** `AddFormsCore()` does:
+
+```csharp
+services.TryAddSingleton<XhtmlRenderService>();
+```
+
+…and that class holds an **injected `IHtmlHelper` in a field**. `RenderXhtmlString()` builds a fresh `StringWriter` and `ViewContext` per call, then `Contextualize()`s that *one shared helper* before rendering.
+
+```
+request A ─ Contextualize(helper → writerA) ─── render ──────────▶ writes to writerA ✅
+request B ────── Contextualize(helper → writerB) ─ render ──▶ writes to writerB
+                          ▲
+                          └─ A is still rendering. Its writes now land in writerB,
+                             or in writerA after it has been disposed.
+```
+
+A singleton holding a per-request dependency is the definition of a **captive dependency**: the shorter lifetime is imprisoned by the longer one. Because both requests are rendering through the same helper, the second one's `Contextualize` redirects the first one's output mid-render.
+
+It surfaces as three *different* exceptions out of `EPiServer.Forms.Helpers.Internal.HtmlExtensions`, which is why it looks like three unrelated flaky bugs:
+
+| Exception | What it actually means |
+|---|---|
+| `Cannot write to a closed TextWriter` | the writer it was redirected to has already been disposed |
+| `ArgumentOutOfRangeException` (Parameter `chunkLength`) | a `StringBuilder` corrupted by interleaved writes |
+| `Destination is too short` | same, caught at a different copy |
+
+Forms catches and swallows each one, so the request completes 200 with an element simply absent.
+
+**Fix — register it transient *first*:**
+
+```csharp
+// BEFORE services.AddForms() / AddFormsCore()
+services.AddTransient<EPiServer.Forms.Core.Internal.XhtmlRenderService>();
+```
+
+`TryAddSingleton` keeps an existing registration, so registering it transient ahead of Forms wins. Every resolution then gets its own `IHtmlHelper` and the renders stop sharing state. The class has no other mutable state, so nothing depends on it being a singleton.
+
+**The generalisable rule:** `TryAdd*` is a *deference* API, not a guarantee — it lets a consumer pre-empt a library's lifetime choice by registering first. That is the cleanest available fix when a library picks a wrong lifetime, because it needs no fork and no reflection. Remove it once Optimizely corrects the lifetime upstream, and report the three stack traces with any support ticket.
+
+**How to find this class of bug:** it is invisible to sequential testing by construction. Fire ~100 concurrent requests at a page and **diff the response bodies against each other**, rather than asserting on status codes. Identical 200s with different content lengths is the tell.
+
+## Forms 6 injects its own stylesheet
+
+Forms 6 ships an opinionated default `EPiServerForms.css` and injects it automatically. On a site with its own form styling this arrives as unasked-for layout changes that look like a regression in your CSS. Check for it before debugging your own stylesheet.
+
 ## Related
 
 - [[post-upgrade-gotchas|Post-Upgrade Gotchas]]
