@@ -148,10 +148,15 @@ environment does not exist   ->  cannot set its app settings
         v
 deploy to create it          ->  app boots with NO configuration (and may crash)
         v
-now set app settings         ->  DXP applies them only ON DEPLOY
+now set app settings         ->  saved, but NOT yet live
         v
+apply them (restart) or
 deploy AGAIN                 ->  finally healthy
 ```
+
+(A save is not an apply — but an apply does not have to be a deployment. See
+[Saving an app setting is not applying it](#saving-an-app-setting-is-not-applying-it--but-you-rarely-need-a-deploy)
+below.)
 
 Worse, on at least one project the PaaS portal **did not list the new environment in the
 app-settings dropdown until a deployment had reached a terminal state**. If your app has
@@ -252,6 +257,35 @@ environment locally."* So don't hand-manage them — but note two traps:
 Also: the **Opti ID Enabled** toggle in Admin Center **cannot be unchecked after activation**.
 Don't click it exploratively on anything production-adjacent.
 
+### Saving an app setting is not applying it — but you rarely need a deploy
+
+Two different mechanisms get conflated constantly, and the conflation is expensive in the wrong
+direction — it turns a ~1 minute restart into a ~10–25 minute deployment, which on a cutover
+night is budget spent for nothing.
+
+| Setting | How it becomes live |
+|---|---|
+| **One you set yourself** in the PaaS portal | Save, then click the portal's explicit **Apply settings** action. It restarts the environment and the app reads the pending values on the way back up. A deploy also works — it is just far slower. |
+| **One DXP injects** (`Optimizely__ContentGraph__*`, `EPiServer__Cms__OptimizelyIdentity__*`) | **Only a new deployment.** DXP rewrites these into the environment as part of deploying; a restart re-reads whatever is already there, which after a credential rotation is the *old* value. |
+
+Measured: `PurgeNonOxyChemSites__ArmDelete` saved as `true` → **Apply settings** → the scheduled
+job's very next run reported `MODE: ARMED` and committed. No deployment involved.
+
+Two more portal behaviours worth knowing:
+
+- **The portal converts `:` to `__` on save.** Both spellings work — `_configuration["A:B"]` reads
+  a setting stored as `A__B`. Don't "fix" the underscores.
+- 🔴 **You cannot verify a secret app setting by inspection — only behaviourally.** The portal
+  hides the value on read, and `az` shows only a KeyVault reference whose **version changes on
+  every deploy whether or not the value changed**. A version bump therefore proves nothing. The
+  only real check is exercising the credential (call the API it authenticates, and confirm the
+  *old* value now fails). A rotation once silently didn't take, and the version bump made it look
+  like it had.
+
+- **The `Optimizely__` prefix is NOT reserved.** You can add your own keys under it for things DXP
+  does not provision. What you must not hand-manage are the specific keys DXP re-injects on every
+  deployment, listed in the table above.
+
 ### `appsettings.<Env>.json` for environments you have never deployed is probably a lie
 
 If a codebase was forked or split from a sibling project, the `Preproduction` and `Production`
@@ -279,8 +313,24 @@ recycle, so hostnames configured by hand lose on the next restart.
 
 `RunAsInitializationModule: false` is a real option in the 2.0.x assembly and is the way to
 provision an environment without letting config mutate its database. Turn it on only once the
-hosts and site GUIDs are known-correct. Verify by querying `tblHostDefinition` after boot —
-zero unexpected rows means it held.
+hosts and site GUIDs are known-correct. Verify after boot with:
+
+```sql
+-- CMS 13: the REAL host config. tblHostDefinition is archaeology.
+SELECT a.Name, a.DisplayName, h.Authority, h.Type
+FROM tblApplication a LEFT JOIN tblApplicationHost h ON h.fkApplicationID = a.pkID;
+```
+
+Zero unexpected rows means it held. Two follow-ons that only show up later:
+
+- **Hosts are replaced, not merged** — an unlisted hostname is *deleted* on the next boot, so a
+  config entry is a standing instruction to remove anything an editor adds in admin.
+- 🔴 **Turn it off on Production once cutover is done.** Production's database is never replaced
+  again, so there is nothing for config to re-assert, and the replace-not-merge behaviour just
+  quietly reverts editors' work on every restart.
+
+Full mechanics, including why `"Id"` must be the synthetic `Site_<GUID>` name:
+[[applications-model|Applications Model]].
 
 ### Pipeline guard rails worth adding before you own three environments
 
