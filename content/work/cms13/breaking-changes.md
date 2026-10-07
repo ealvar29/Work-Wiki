@@ -160,6 +160,8 @@ The two calls come from **two different packages**, and only the second one is n
 
 Until this is wired, "Visitor Groups" is simply **absent from the CMS menu**, with no error anywhere. See [[post-upgrade-gotchas#visitor-groups-is-missing-from-the-cms-menu|Post-Upgrade Gotchas]].
 
+Wiring it up is only half the job. **`EPiServer.Forms.Samples` has no CMS 13 build** (newest is 4.2.7, capped at `EPiServer.Forms < 6.0.0` and `EPiServer.CMS.UI < 13.0.0`), so any audience migrated from CMS 12 that uses its `FormCriterion` — "visitor has submitted form X" — loads with *"This criterion failed to load"* and matches nobody. The UI is also renamed **"Audiences"** in CMS 13 while every API route, config key and DI call still says `VisitorGroups`. See [[post-upgrade-gotchas#audiences-migrated-from-cms-12-fail-with-this-criterion-failed-to-load|Post-Upgrade Gotchas]].
+
 ## 13. Async REST/Context Services
 
 | Removed | Replacement |

@@ -682,7 +682,77 @@ services
 bin/<Config>/net10.0/modules/_protected/VisitorGroups/VisitorGroups.zip
 ```
 
-> **Don't reach for this as access control.** Visitor Groups personalise what renders; they do not gate it. Permission-gating pages or assets for an external audience needs a second ASP.NET Core authentication scheme (e.g. cookie auth) alongside Opti ID, driven by normal authorization policies or controller attributes. That is a build, not a config change.
+> **Visitor Groups have two modes, and only one of them is personalization.** Tick *"Make this audience available when setting access rights for pages and files"* — `isSecurityRole: true` in the API — and the group becomes a **virtual role** you can add to a content item's ACL. That genuinely gates the request: a non-matching anonymous visitor gets an authentication challenge, not a stripped-down page. Verified end-to-end on 13.1.3 (Oct 2026) in both directions — matching audience renders the page anonymously, non-matching audience redirects to the IdP. Without that flag the group is personalization-only: it decides what renders *inside* a page the visitor can already reach.
+>
+> **It still isn't authentication.** Criteria evaluate on visitor signals — time of day, IP range, visited pages, query strings — and most are spoofable or satisfiable by typing a URL. Use it to target an audience, not to protect a secret. For content that must genuinely be withheld, add a real authentication scheme alongside Opti ID, or a shared-secret gate.
+
+### Audiences Migrated From CMS 12 Fail With "This criterion failed to load"
+
+**Symptom:** Once the Visitor Groups UI is restored (above), *existing* audiences show **"This criterion failed to load. Contact your administrator for assistance."** where the criterion editor should be. The **"Technical information"** expander opens to nothing. Newly created audiences work perfectly, which makes it look like a data-corruption problem.
+
+**Nothing is logged.** No exception in the DXP console log, and every API call returns `200` — `getAll`, `getCategories` and `getById` all succeed. A log *summariser* will therefore show a clean bill of health; this is invisible to anything that ranks error signatures rather than reading raw lines.
+
+**Root cause:** An audience stores each criterion in the CMS database as a **type name string**, not a reference. If the package that supplied that type isn't installed on CMS 13, the type can't be loaded. The common case is `EPiServer.Forms.Samples`, whose `FormCriterion` ("visitor has submitted form X") was widely used on CMS 12:
+
+| `EPiServer.Forms.Samples 4.2.7` — newest published | Declared range | CMS 13 reality |
+|---|---|---|
+| `EPiServer.Forms` | `[5.10.2, 6.0.0)` | 6.0.x — **excluded** |
+| `EPiServer.CMS.UI` | `[12.22.5, 13.0.0)` | 13.1.x — **excluded** |
+| `targetFramework` | `net6.0` | net10.0 |
+
+There is no 5.x or 6.x release. Optimizely Support (Oct 2026) confirmed a CMS 13 migration is *planned but not prioritized, with no ETA*. You cannot install your way out of this.
+
+**Identifying which criterion is dead.** The UI won't name it — the error replaces the editor. The API will, and it has said so all along:
+
+```
+GET /ui/VisitorGroups/visitorgroups/getById/<group-guid>
+```
+
+```json
+"criteria": [{
+  "typeName": "EPiServer.Forms.Samples.Criteria.FormCriterion, EPiServer.Forms.Samples",
+  "errors": [{ "message": "The type ... could not be loaded" }],
+  "editorConfig": null, "settings": null
+}]
+```
+
+Read it from **DevTools → Network → Fetch/XHR** on the audience page. Don't try to call the endpoint by typing the URL — it needs the UI's `X-CSRF-TOKEN` header and returns `400` plus an HTML error page without it.
+
+> **The UI receives `errors[].message` and renders `<p></p>`.** The empty "Technical information" panel is an Optimizely UI defect, not a missing diagnosis. Reported Oct 2026. Expect it to affect every CMS 12 → 13 upgrade carrying a legacy criterion, and go straight to the API response rather than trusting the panel.
+
+**Failure behaviour: fail-closed.** Verified on 13.1.3 by giving a test page a single Read grant from an affected audience, removing `Everyone`, and requesting it anonymously — the visitor is challenged, i.e. denied. A criterion that cannot load makes the audience match **nobody**, not everybody. Safe, but it also means the audience denies its intended users, so gated content silently becomes unreachable rather than exposed.
+
+**Options, none of them free:**
+
+| Option | Verdict |
+|---|---|
+| Install `EPiServer.Forms.Samples` | ⛔ Impossible — no CMS 13 build exists |
+| Rebuild with `Visited page` → the form's confirmation page | Closest built-in, but satisfiable by typing that URL. Fine for personalization, weak as a security role |
+| Port the criterion yourself | Needs a CMS 13-compatible editor for the new React UI, not just the `[VisitorGroupCriterion]` class |
+| Replace with a real gate (shared password, auth scheme) | The honest answer when the audience was doing access control |
+
+**The transferable lesson.** Nothing in the codebase referenced `EPiServer.Forms.Samples` — not the csproj, not a using, not a single line of C#. The build was clean. The dependency lived **in the database**, as a string. Compilers can't see that class of dependency and neither can a package audit.
+
+**Every stored type name is an unverified dependency.** CMS persists them for audience criteria, scheduled jobs, property definitions and content providers. The only way to find them is to exercise the feature and read what the server says it couldn't load. Budget time for it in every upgrade.
+
+### Audience Time Criteria Evaluate in UTC, Not Editor or Site Time
+
+**Symptom:** A **Time of day** criterion set to plausible business hours doesn't match when it obviously should. An editor in US Central sets `09:00–16:00`, browses at 11:50 local, and is denied.
+
+**Root cause:** The criterion evaluates against the **server clock**, which on DXP is **UTC**. 11:50 Central is 16:50 UTC — fifty minutes past the end of the window. The editor's window had already closed before lunch.
+
+```
+                    09:00                16:00
+                      |--------------------|          ← window as the editor typed it
+  Editor (CDT) 11:50  ········*·······              ← inside  → "it should work"
+  Server (UTC) 16:50                        *       ← outside → denied
+```
+
+**There is no hint in the UI.** The field is a bare `<input type="time">` with no timezone label, so the editor has no reason to think the clock isn't theirs.
+
+**Fix:** Author time criteria in **UTC**, and say so in the audience's Notes field so the next person doesn't "correct" it back. Central is UTC−5 in summer, UTC−6 in winter — so a genuine 9-to-5 Central window is `14:00–22:00` UTC in summer and `15:00–23:00` in winter, and **the audience needs editing twice a year** unless you accept the one-hour drift.
+
+**Related trap:** the weekday checkboxes are **required** — at least one must be ticked — and they are evaluated against the server's date too. A window spanning midnight UTC lands on a different weekday than the editor expects.
 
 ### A Component That Can't Finish Rendering Looks Like a *Different* Component
 
