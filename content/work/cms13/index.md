@@ -40,6 +40,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[upgrade-test-plan|Integration Test Plan]] — the "is it done?" acceptance gate: smoke gate + 12 test areas with Jaxon/client owner split, severity classes, and a sign-off record to run on Integration before promoting
 - [[breaking-changes|Breaking Changes]] — full catalog
 - [[ivalidate-breaking-change|Breaking Change: IValidate\<T\>]] — validators no longer auto-discovered, must register via `AddCmsValidator<T>()`
+- [[validator-registration-audit|Validator Registration Audit]] — the field version of that fix: finding every validator, which `*Validator.cs` files do NOT belong in `AddCmsValidator<T>()`, why you triage severity before switching them all on, and the null-deref that sat undetected in dark code
 - [[post-upgrade-gotchas|Post-Upgrade Gotchas]] — 14 real gotchas from the field: namespace cascades, Find extensions, Geta scanner crash + stale-DB-job crash, cookie policy, AutoMapper null ref, Graph SDK package rename + dual DI registration, and more
 - [[extension-migration|Migrating a CMS Extension]] — upgrading reusable packages and add-ons to CMS 13
 - [[forms-cms13|Optimizely Forms on CMS 13]] — custom element blocks must emit `ElementName`, not the Guid, or forms fail silently; `EPiServer.Forms.Samples` has no CMS 13 build (reCAPTCHA, date and address elements all gone); reclaiming orphaned element content by ContentTypeGUID

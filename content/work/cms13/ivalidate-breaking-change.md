@@ -66,6 +66,7 @@ services.AddCmsValidator<ImageValidator>();
 
 ## Related
 
+- [[validator-registration-audit|Validator Registration Audit]] — running steps 1–3 on a real solution: severity triage before re-enabling, the validator types that must stay unregistered, and how to verify
 - [[breaking-changes|Breaking Changes Catalog]] — full list of CMS 13 breaking changes
 
 ## Sources

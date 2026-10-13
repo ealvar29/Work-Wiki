@@ -65,5 +65,6 @@ The upgrade is **functionally complete and deployed to Integration**. Remaining 
 - [[work/clients/oxychem/cms13-uat|CMS 13 UAT Plan]] — the client-facing acceptance pass for this engagement
 - [[work/cms13/upgrade-test-plan|Integration Test Plan]] — the generic plan the UAT page instantiates
 - [[work/cms13/post-upgrade-gotchas|Post-Upgrade Gotchas]] — mostly sourced from this project
+- [[work/cms13/validator-registration-audit|Validator Registration Audit]] — OX-202: every `IValidate<T>` on this site went dark at the 2026-09-18 cutover and stayed dark for 25 days
 - [[work/cms13/deploying-to-dxp|Deploying to DXP]] · [[work/cms13/graph-sdk|Graph SDK]] · [[work/cms13/dam-integration|DAM Integration]] · [[work/cms13/optimizely-opal|Optimizely Opal]]
 - [[work/cms13/opti-id-admin-center|Opti ID & Admin Center]]
