@@ -10,9 +10,16 @@ tags:
   - uat
 ---
 
+> [!warning] Historical — this plan was overtaken by the cutover
+> OxyChem went live on **2026-09-18**, and the epic this page describes (`OX-61`) was **closed as superseded on 2026-10-23** with twelve of its section tickets still open and untouched since August. Production answered the questions first.
+>
+> **Keep reading it for the triage method, not for the status.** The reasoning in *Why triage at all* below — that "ready for QA" and "client-testable" are different axes — is the durable part and is worth reusing. The per-section state is not current. Live work now sits under the `OX-151` **Post Go-Live** epic. See [[work/clients/oxychem/index|OxyChem]] for where the project actually is.
+>
+> **The lesson for the next upgrade:** a multi-part UAT epic that straddles a cutover date loses to the cutover. Either run it to completion *before* the date, or plan verification as post-launch monitoring plus small tickets — not as a twelve-part plan that ages out mid-flight.
+
 The OxyChem-specific instance of the generic [[work/cms13/upgrade-test-plan|Integration Test Plan]]. It answers one question the generic plan can't: **of everything we built, what can the client actually test, and in what order?**
 
-Jira: **OX-61** *CMS 13 QA & UAT* (the testing epic) · **OX-23** *Upgrading OxyChem to CMS 13* (the delivery epic).
+Jira: **OX-61** *CMS 13 QA & UAT* (the testing epic, now closed) · **OX-23** *Upgrading OxyChem to CMS 13* (the delivery epic, closed).
 
 > [!note] Hostnames deliberately omitted
 > This wiki is public. Integration hostnames, portal links, and account names stay out of it — fill them into the environment block below in your working copy, or keep them in the ticket.
