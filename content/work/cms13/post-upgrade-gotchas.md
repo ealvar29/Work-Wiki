@@ -688,19 +688,34 @@ bin/<Config>/net10.0/modules/_protected/VisitorGroups/VisitorGroups.zip
 
 ### Audiences Migrated From CMS 12 Fail With "This criterion failed to load"
 
+> ✅ **RESOLVED — `EPiServer.Forms.Samples 5.0.0` shipped 2026-10-20 (CMS 13 / net10.0).** *Verified against the Optimizely feed and the package binary 2026-10-26.* This section previously said no CMS 13 build existed and that you could not install your way out. **That is no longer true** — install the package and the criteria load. Everything below about *diagnosing* the failure is still correct and still worth reading, because the dependency is invisible to a package audit either way.
+>
+> Both criterion types survive the port — confirmed by reflecting over `lib/net10.0/EPiServer.Forms.Samples.dll`:
+>
+> ```
+> EPiServer.Forms.Samples.Criteria.FormCriterion
+> EPiServer.Forms.Samples.Criteria.SubmittedValueCriterion
+> ```
+
 **Symptom:** Once the Visitor Groups UI is restored (above), *existing* audiences show **"This criterion failed to load. Contact your administrator for assistance."** where the criterion editor should be. The **"Technical information"** expander opens to nothing. Newly created audiences work perfectly, which makes it look like a data-corruption problem.
 
 **Nothing is logged.** No exception in the DXP console log, and every API call returns `200` — `getAll`, `getCategories` and `getById` all succeed. A log *summariser* will therefore show a clean bill of health; this is invisible to anything that ranks error signatures rather than reading raw lines.
 
 **Root cause:** An audience stores each criterion in the CMS database as a **type name string**, not a reference. If the package that supplied that type isn't installed on CMS 13, the type can't be loaded. The common case is `EPiServer.Forms.Samples`, whose `FormCriterion` ("visitor has submitted form X") was widely used on CMS 12:
 
-| `EPiServer.Forms.Samples 4.2.7` — newest published | Declared range | CMS 13 reality |
+| Dependency | `4.2.7` (last CMS 12 build) | `5.0.0` (pub. 2026-10-20) |
 |---|---|---|
-| `EPiServer.Forms` | `[5.10.2, 6.0.0)` | 6.0.x — **excluded** |
-| `EPiServer.CMS.UI` | `[12.22.5, 13.0.0)` | 13.1.x — **excluded** |
-| `targetFramework` | `net6.0` | net10.0 |
+| `EPiServer.Forms` | `[5.10.2, 6.0.0)` — excludes 6.x | `[6.0.1, 7.0.0)` ✅ |
+| `EPiServer.CMS.UI` | `[12.22.5, 13.0.0)` — excludes 13.x | `[13.0.0, 14.0.0)` ✅ |
+| `EPiServer.CMS.AspNetCore.HtmlHelpers` | `[12.16.0, 13.0.0)` | `[13.0.0, 14.0.0)` ✅ |
+| `targetFramework` | `net6.0` | `net10.0` ✅ |
 
-There is no 5.x or 6.x release. Optimizely Support (Oct 2026) confirmed a CMS 13 migration is *planned but not prioritized, with no ETA*. You cannot install your way out of this.
+**If you are on 4.2.7, bump to 5.0.0 and the audiences load again.** Note the gap this sat in: Optimizely Support said in **Oct 2026** that a CMS 13 migration was *"planned but not prioritized, with no ETA"* — and the package shipped **weeks later**, without that answer being revised. A vendor "no ETA" is a statement about the roadmap on the day it was given, not a standing fact. **Re-check the feed before you design around an absent package** — it costs one HTTP call:
+
+```bash
+curl -s "https://nuget.optimizely.com/feed/packages.svc/FindPackagesById()?id='EPiServer.Forms.Samples'" \
+  | grep -oE '<d:Version[^>]*>[^<]+' | tail -5
+```
 
 **Identifying which criterion is dead.** The UI won't name it — the error replaces the editor. The API will, and it has said so all along:
 
@@ -722,16 +737,26 @@ Read it from **DevTools → Network → Fetch/XHR** on the audience page. Don't 
 
 **Failure behaviour: fail-closed.** Verified on 13.1.3 by giving a test page a single Read grant from an affected audience, removing `Everyone`, and requesting it anonymously — the visitor is challenged, i.e. denied. A criterion that cannot load makes the audience match **nobody**, not everybody. Safe, but it also means the audience denies its intended users, so gated content silently becomes unreachable rather than exposed.
 
-**Options, none of them free:**
+**Options:**
 
 | Option | Verdict |
 |---|---|
-| Install `EPiServer.Forms.Samples` | ⛔ Impossible — no CMS 13 build exists |
-| Rebuild with `Visited page` → the form's confirmation page | Closest built-in, but satisfiable by typing that URL. Fine for personalization, weak as a security role |
-| Port the criterion yourself | Needs a CMS 13-compatible editor for the new React UI, not just the `[VisitorGroupCriterion]` class |
-| Replace with a real gate (shared password, auth scheme) | The honest answer when the audience was doing access control |
+| **Install `EPiServer.Forms.Samples 5.0.0`** | ✅ **The answer as of 2026-10-20.** Both `FormCriterion` and `SubmittedValueCriterion` ship on `net10.0` |
+| Rebuild with `Visited page` → the form's confirmation page | Only if you want to drop the dependency anyway. Satisfiable by typing that URL — fine for personalization, weak as a security role |
+| Port the criterion yourself | No longer necessary. Would need a CMS 13-compatible editor for the new React UI, not just the `[VisitorGroupCriterion]` class |
+| Replace with a real gate (shared password, auth scheme) | Still the honest answer **if the audience was doing access control** — see the fail-closed note above. Installing the package restores the criterion; it does not make a spoofable criterion into authentication |
 
-**The transferable lesson.** Nothing in the codebase referenced `EPiServer.Forms.Samples` — not the csproj, not a using, not a single line of C#. The build was clean. The dependency lived **in the database**, as a string. Compilers can't see that class of dependency and neither can a package audit.
+**The transferable lesson, which the fix does not retire.** Nothing in the codebase referenced `EPiServer.Forms.Samples` — not a using, not a single line of C#. The build was clean. The dependency lived **in the database**, as a string. Installing the package is a one-line fix *once you know you need it*; the expensive half was never the fix, it was discovering that the dependency existed at all. Compilers can't see that class of dependency and neither can a package audit.
+
+**Find them with SQL instead of by waiting for an editor to complain.** The criteria are queryable directly — on a restored copy of the database, before you upgrade anything:
+
+```sql
+SELECT [TypeName], COUNT(*) AS Occurrences
+FROM [VW_VisitorGroupCriterion]
+GROUP BY [TypeName] ORDER BY COUNT(*) DESC;
+```
+
+Any `TypeName` naming an assembly you are about to drop or bump is a dependency to verify. Cross-check `[VW_VisitorGroup].[IsSecurityRole]` while you are in there — a `1` means the audience gates content ACLs, so a criterion that fails to load takes real pages offline rather than merely degrading personalization.
 
 **Every stored type name is an unverified dependency.** CMS persists them for audience criteria, scheduled jobs, property definitions and content providers. The only way to find them is to exercise the feature and read what the server says it couldn't load. Budget time for it in every upgrade.
 
