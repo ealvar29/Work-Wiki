@@ -100,3 +100,29 @@ content/
 - Bold key terms on first use
 - No comments in code blocks unless the why is non-obvious
 - Source attribution at the bottom of every page
+
+## Perishable Claims Must Carry a Verification Date
+
+Some claims are facts about the world on a given day, not durable knowledge. **Package X has no CMS 13 build**, *vendor says no ETA*, *version N is the latest*, *this is fixed in 13.1.3*, *the API does not expose Y* — all of these expire silently, and a confident undated sentence reads as permanent long after it stops being true.
+
+**Rule: any claim about availability, versions, or a vendor roadmap gets a verification date in the same sentence or an adjacent italic line.**
+
+```markdown
+*Verified against the Optimizely feed 2026-10-26.*
+```
+
+Then make it cheap to re-check — include the command that would prove or disprove it:
+
+```bash
+curl -s "https://nuget.optimizely.com/feed/packages.svc/FindPackagesById()?id='<PackageId>'" \
+  | grep -oE '<d:Version[^>]*>[^<]+' | tail -5
+```
+
+**When a dated claim turns out to be stale, correct it in place with a dated callout — do not silently rewrite it.** Readers who acted on the old advice need to see that it changed and when. Keep the diagnostic method; replace only the verdict. State explicitly what is no longer true:
+
+```markdown
+> ✅ **RESOLVED — <thing> shipped <date>.** *Verified <date>.* This section previously said
+> <old claim>. **That is no longer true.** Everything below about diagnosing it still applies.
+```
+
+**Worked example:** `EPiServer.Forms.Samples` was documented across three pages as having no CMS 13 build, on the strength of an Optimizely engineering statement (2026-09-08) and a support answer (Oct 2026). `5.0.0` shipped 2026-10-20 and neither answer was revised. The pages stayed confidently wrong until someone queried the feed. **A vendor "no ETA" is a snapshot, not a standing fact** — and absence of a package is exactly the kind of claim that nothing in the world will come along and correct for you.

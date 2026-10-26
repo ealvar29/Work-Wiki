@@ -7,9 +7,11 @@ tags:
   - upgrade
 ---
 
-`EPiServer.Forms` moves from 5.x to **6.0.x** for CMS 13. Core Forms upgrades cleanly. The problems are in **custom element blocks** and in **`EPiServer.Forms.Samples`**, which did not make the jump at all.
+`EPiServer.Forms` moves from 5.x to **6.0.x** for CMS 13. Core Forms upgrades cleanly. The remaining problems are in **custom element blocks**. **`EPiServer.Forms.Samples` made the jump on 2026-10-20 (`5.0.0`)** — reCAPTCHA, hCaptcha, date and address elements are all back; see below.
 
 Every finding here came from a real CMS 12 → 13 upgrade on a multi-site instance with ~9,000 blocks.
+
+*Package availability verified against the Optimizely feed 2026-10-26.*
 
 ## The single most expensive bug: element name vs Guid
 
@@ -73,36 +75,48 @@ Forms shows validation errors by **toggling a CSS class**. An inline `style="dis
 
 **Never inline-hide a validation container.** Let Forms control visibility.
 
-## `EPiServer.Forms.Samples` has no CMS 13 build
+## `EPiServer.Forms.Samples` — shipped for CMS 13 on 2026-10-20
+
+> ✅ **`EPiServer.Forms.Samples 5.0.0` is out.** *Verified against the Optimizely feed and by reflecting over the package binary, 2026-10-26.* This section previously said the package had no CMS 13 build and advised scoping upgrades as though it would never arrive. **Bump to 5.0.0 instead.** The history is kept below because the *reasoning* about unscheduled vendor packages is still sound — it was the fact that expired, not the method.
 
 | Package | Versions |
 | --- | --- |
-| `EPiServer.Forms` (core) | … 5.10.9, **6.0.0, 6.0.1** |
-| `EPiServer.Forms.Samples` | … 4.2.6, **4.2.7** ← stops here |
+| `EPiServer.Forms` (core) | … 5.10.9, 6.0.0, 6.0.1, **6.0.2** |
+| `EPiServer.Forms.Samples` | … 4.2.6, 4.2.7, **5.0.0** ← CMS 13 / `net10.0` |
 
-* Not on nuget.org — it ships on **Optimizely's own feed**, so a 404 against `api.nuget.org` proves nothing.
-* Open source at `github.com/episerver/EPiServer.Forms.Samples`, **last commit 2024-07**, branches stop at `release/4.2.2`. Not archived, just dormant.
+`5.0.0` dependency ranges: `EPiServer.Forms [6.0.1, 7.0.0)` · `EPiServer.CMS.UI [13.0.0, 14.0.0)` · `EPiServer.CMS.AspNetCore.HtmlHelpers [13.0.0, 14.0.0)` · `System.Configuration.ConfigurationManager [10.0.0, 11.0.0)`.
+
+* Not on nuget.org — it ships on **Optimizely's own feed**, so a 404 against `api.nuget.org` proves nothing. (This is also why "it isn't released" is easy to believe for longer than it is true.)
 * Licensing is **contradictory** — the README badge says Apache 2.0, `build/props/common.props` says *"© 2003-2020 by Optimizely. All rights reserved"* with `PackageLicenseUrl` pointing at the EPiServer EULA. Treat the source as a specification to read, not code to copy.
-* Optimizely support confirmed *"no official announcement or timeline for a CMS 13-specific release"* — then, in the same reply, advised installing it. Ignore the second half.
 
-> **Roadmap update — Optimizely engineering, 2026-09-08.** *"We have a plan to migrate `EPiServer.Forms.Samples` to CMS 13, but this hasn't been prioritized so far. I will discuss this with our PM, and we'll start working on it ASAP if possible."*
->
-> So the package is **not abandoned — it is unscheduled.** That is a real distinction, but it changes nothing you should *plan* around: there is still no version, no date, and no commitment. Scope a CMS 13 upgrade as though Samples will never arrive, and treat its eventual release as an opportunity to delete your shims, not as a dependency. If a client's upgrade genuinely hinges on it, that is a reason to raise a support ticket and add weight to the prioritisation — not a reason to wait.
+### Everything came back — verified in the binary
 
-### What that takes with it
+Reflected over `lib/net10.0/EPiServer.Forms.Samples.dll`:
 
-| Element | Core Forms 6.0.0 equivalent | Returns when Samples ships? |
+| Element | Core Forms 6.0.x | In Samples 5.0.0 |
 | --- | --- | --- |
-| `RecaptchaElementBlock` (Google reCAPTCHA **v3**) | ❌ none | ✅ yes — confirmed |
-| `HcaptchaElementBlock` | ❌ none | not mentioned |
-| `DateTimeElementBlock` | ❌ **none — no date element at all** | ✅ yes — confirmed |
-| `AddressesElementBlock` | ❌ **none — no address element at all** | ✅ yes — confirmed |
+| `RecaptchaElementBlock` (Google reCAPTCHA **v3**) | ❌ none | ✅ present |
+| `HcaptchaElementBlock` | ❌ none | ✅ present |
+| `DateTimeElementBlock` | ❌ none | ✅ present |
+| `DateTimeRangeElementBlock` | ❌ none | ✅ present *(not in the old table at all)* |
+| `AddressesElementBlock` | ❌ none | ✅ present |
 
-Optimizely engineering confirmed (2026-09-08) that reCAPTCHA, `DateTimeElementBlock` and `AddressesElementBlock` all live in Samples and *"once the package is upgraded to CMS 13, customers can use it."* **All three are blocked on the same unscheduled package** — so they are one dependency, not four separate gaps. Useful when a client asks why the date picker and the captcha vanished together.
+Supporting types are all there too — `RecaptchaValidator`, `HcaptchaValidator`, `DateValidator` / `DateTimeRangeValidator`, `AddressValidator`, `GoogleAddressValidateService`, the `*ElementBlockDescriptor` editor descriptors, and the `Configuration.RecaptchaKey` / `HcaptchaKey` / `AddressKey` option classes. The Razor views ship **precompiled** into the assembly (`AspNetCoreGeneratedDocument.FormsViews_Views_ElementBlocks_*`), so there is no view-copying step.
 
-Core Forms 6.0.0 ships: Captcha, Choice, FileUpload, ImageChoice, Number, ParagraphText, PredefinedHidden, Range, ResetButton, Selection, SubmitButton, Textarea, Textbox, Url, VisitorDataHidden.
+Core Forms 6.0.x ships: Captcha, Choice, FileUpload, ImageChoice, Number, ParagraphText, PredefinedHidden, Range, ResetButton, Selection, SubmitButton, Textarea, Textbox, Url, VisitorDataHidden.
 
-⚠️ **Date and address are lost functionality, not merely orphaned content.** That needs a client conversation, not a code fix.
+### The lesson that outlived the blocker
+
+Optimizely engineering said on **2026-09-08**: *"We have a plan to migrate `EPiServer.Forms.Samples` to CMS 13, but this hasn't been prioritized so far."* Support repeated "no timeline" in **Oct 2026**. The package shipped **2026-10-20** — and neither answer was revised.
+
+> **A vendor "unscheduled / no ETA" is a snapshot of the roadmap on the day you asked, not a standing fact.** The advice to scope around an absent package is still right; the mistake is letting that scoping decision go unexamined for a quarter. **Re-check the feed at the start of every upgrade**, and before you build a shim:
+>
+> ```bash
+> curl -s "https://nuget.optimizely.com/feed/packages.svc/FindPackagesById()?id='EPiServer.Forms.Samples'" \
+>   | grep -oE '<d:Version[^>]*>[^<]+' | tail -5
+> ```
+>
+> Then check the shim you already wrote is still needed — see *"grep for expired comments"* in [[post-upgrade-gotchas|Post-Upgrade Gotchas]]. A re-enablement is never just "add the PackageReference back."
 
 ### CMS 13 does ship a captcha — just not reCAPTCHA
 
@@ -129,6 +143,8 @@ IElementRequireClientResources  ❌ REMOVED in Forms 6.0.0
 That removed interface is how the element injected Google's `api.js`. A straight copy will not compile — emit the script from the Razor view instead.
 
 ## Reclaiming orphaned element content
+
+> ℹ️ **Scope note (2026-10-26).** With `Forms.Samples 5.0.0` available, you should **not** need this shim for the Samples elements — install the package and the CMS re-adopts the content against the original GUIDs on its own. Keep reading anyway for two reasons: the `ContentTypeGUID` reclaim technique applies to **any** retired or renamed content type, and if a previous upgrade already shipped these stub classes, **you must delete them before adding the package** or you will have two types claiming the same GUID.
 
 When a package disappears, its content remains and the CMS refuses the whole content area:
 

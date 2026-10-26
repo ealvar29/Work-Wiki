@@ -43,7 +43,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[validator-registration-audit|Validator Registration Audit]] — the field version of that fix: finding every validator, which `*Validator.cs` files do NOT belong in `AddCmsValidator<T>()`, why you triage severity before switching them all on, and the null-deref that sat undetected in dark code
 - [[post-upgrade-gotchas|Post-Upgrade Gotchas]] — 14 real gotchas from the field: namespace cascades, Find extensions, Geta scanner crash + stale-DB-job crash, cookie policy, AutoMapper null ref, Graph SDK package rename + dual DI registration, and more
 - [[extension-migration|Migrating a CMS Extension]] — upgrading reusable packages and add-ons to CMS 13
-- [[forms-cms13|Optimizely Forms on CMS 13]] — custom element blocks must emit `ElementName`, not the Guid, or forms fail silently; `EPiServer.Forms.Samples` has no CMS 13 build (reCAPTCHA, date and address elements all gone); reclaiming orphaned element content by ContentTypeGUID
+- [[forms-cms13|Optimizely Forms on CMS 13]] — custom element blocks must emit `ElementName`, not the Guid, or forms fail silently; **`EPiServer.Forms.Samples 5.0.0` shipped 2026-10-20**, so reCAPTCHA, hCaptcha, date and address elements are back (delete any GUID-reclaim stubs before installing); reclaiming orphaned element content by ContentTypeGUID
 - [[multisite-plugin-cms13|Multi-Site Plugin v2]] — display name → normalized app identity breaking change
 - [[cms12-to-cms13-case-study|CMS 12 → 13 Case Study]] — real-world walkthrough, Find→Graph patterns, NuGet pitfalls
 - [[ai-assisted-upgrade|AI-Assisted Upgrades]] — using Claude Code to speed up migration; see also [[upgrade-assistant-mcp|Upgrade Assistant MCP]] in Jaxon Tools
