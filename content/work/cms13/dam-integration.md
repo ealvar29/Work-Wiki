@@ -205,7 +205,7 @@ The question every client eventually asks: *"when selecting an image from the DA
 | Goal | Mechanism | Whose job | Effort |
 | --- | --- | --- | --- |
 | Ship an appropriately **sized** image | CDN resize-on-the-fly (Cloudflare `/cdn-cgi/image/width=…`) | yours | usually **already done** |
-| Editor picks a specific **crop / aspect** | a DAM rendition, chosen per image | **not supported by the CMS 13 picker** | see below |
+| Editor picks a specific **crop / aspect** | a DAM rendition, chosen per image | **CMS 13.4.0+ only** — refused on 13.1.x / 13.3.x | see below |
 
 ### Sizing is almost certainly already solved — check before building anything
 
@@ -215,9 +215,12 @@ If your `<img>` markup carries a `srcset` of width variants, the browser is alre
 
 ⚠️ **Coverage caveat:** that only applies where your view-model property is a *renderable-image abstraction* that runs the srcset builder. Any property still typed as the CMS media class (`ImageFile`) resolves a DAM asset to **null** and renders nothing at all — see [[work/cms13/dam-integration#a-dam-asset-is-selected-saves-fine-and-renders-nothing]]. Converting those properties buys more real-world page weight than renditions would.
 
-### The CMS 13 DAM picker cannot return a rendition
+### The DAM picker cannot return a rendition — on 13.1.x only
 
-Measured against `EPiServer.Cms.DamIntegration.UI` and `EPiServer.Cms.DamIntegration.CmpClient` (13.x) by enumerating their type definitions: **there is no `Rendition`, `Crop`, or `Variant` type anywhere in either assembly.** What exists is asset-shaped:
+> [!success] Fixed in CMS 13.4.0 (2026-10-22)
+> Everything in this section is true of **13.1.x and false from 13.4.0 onwards**. Kept because it is still the state of any project that has not upgraded, and because the assembly-enumeration technique is the way to check your own version. Jump to [[work/cms13/dam-integration#per-image-rendition-selection--blocked-before-1340-working-from-1340|the version boundary]] for what changed.
+
+Measured against `EPiServer.Cms.DamIntegration.UI` and `EPiServer.Cms.DamIntegration.CmpClient` (**13.1.x**) by enumerating their type definitions: **there is no `Rendition`, `Crop`, or `Variant` type anywhere in either assembly.** What exists is asset-shaped:
 
 ```
 ICmpAssetClient.GetAssetMetadataById<T>()      ← generic metadata fetch, the only real hook
@@ -263,19 +266,54 @@ width=480,height=640,format=auto,fit=cover,gravity=auto  200   41,155 bytes   (3
 2. **Transformations are billed.** Adding a height multiplies unique variants (widths × ratios). Check the cost before rolling it across every slot.
 3. **Smart gravity is good, not perfect.** It will occasionally crop badly. The fix is a per-image focal-point override — worth adding *later*, when a real example justifies it, not up front.
 
-### Per-image rendition selection is BLOCKED on CMS 13 — don't scope it
+### Per-image rendition selection — BLOCKED before 13.4.0, WORKING from 13.4.0
 
-🔴 **The CMS refuses a rendition even though the DAM picker offers one.** Measured on CMS 13.1.x, 2026-09-08:
+🟢 **This was a platform gap, and the fix is a version bump — not code you write.** Verified working end to end on CMS **13.4.0**, 2026-10-22. If you are on 13.1.x and hit the banner below, stop debugging your integration and check your package version first.
 
-**Repro:** any image property → *Select Content* → DAM selection → pick a **rendition** (not the original) → **Choose Image** → back in the CMS window a red banner appears:
+**The symptom on 13.1.x.** Any image property → *Select Content* → DAM selection → pick a **rendition** (not the original) → **Choose Image** → back in the CMS window, a red banner:
 
 ```
 Renditions cannot be used. Please select an original asset.
 ```
 
-The rejection happens at **selection** time, so the reference is never persisted and never reaches your mapping layer. No `AllowedTypes` change, view-model retype, or type converter can affect it — there is nothing to resolve. This is consistent with the assembly evidence above: `EPiServer.Cms.DamIntegration.UI` and `.CmpClient` contain no rendition type at all, so the integration has no concept of a rendition reference to hand you.
+The rejection happens at **selection** time, so the reference is never persisted and never reaches your mapping layer. No `AllowedTypes` change, view-model retype, or type converter can affect it — there is nothing to resolve.
 
-**Consequence:** per-image rendition selection is not "expensive", it is **unavailable**. Do not estimate it, and do not promise it to a client. Raise a support ticket asking whether it is supported or roadmapped, and in the meantime use the CDN cropping route above — which is not merely cheaper, it is the *only* route to automatic cropping on CMS 13 today.
+#### The feature landed across three releases, and only the third one works
+
+Measured by diffing the strings and XML docs of `EPiServer.Cms.DamIntegration.UI` across versions — the refusal string and the three pieces that implement the feature:
+
+| Version | `"renditionnotsupported"` | `DamRenditionContentSourceProvisioner` | `CmpRenditionVariantProvider` | `/variants/renditions` |
+|---|---|---|---|---|
+| 13.1.3 | **present** | — | — | — |
+| 13.3.0 | gone | present | — | — |
+| **13.4.0** | gone | present | **present** | **present** |
+
+13.1.3 shipped **only the refusal string** — the banner is the entire feature. 13.3.0 added the server-side content-source provisioner but neither the variant provider nor the endpoint the picker calls, so a 13.3.0 project still cannot select a rendition. **13.4.0 is the first release where the path is complete end to end.**
+
+> **The lesson:** "fixed in version X" from support is worth verifying against the assemblies before you bump, and the interesting answer is often that the fix arrived in *pieces*. A half-shipped feature looks identical to a broken one from the editor's chair — the refusal string disappearing at 13.3.0 would have read as "fixed" to anyone grepping for the error message alone.
+
+#### Bumping takes the whole EPiServer family with it
+
+`EPiServer.Cms.DamIntegration.UI` 13.4.0 declares `<dependency id="EPiServer.Cms" version="[13.4.0]" />` — **brackets, an exact pin**, not a minimum. Same for `.CmpClient`, `Optimizely.Graph.Cms` and `Optimizely.Graph.Cms.ContentSources`. Taking DAM 13.4.0 onto a 13.1.3 family is a **restore conflict**, not a warning.
+
+Third-party add-ons are usually fine, because they declare minimums: `version="13.1.0"` (bare) means *≥ 13.1.0*, where `version="[13.1.0]"` means *exactly*. **That one bracket is the whole compatibility question** — read the restored `.nuspec` rather than the package's marketing version.
+
+#### Telling a rendition from an original once it works
+
+The delivery URL is `https://<dam-host>/images/assets/<filename>/<id>`, and **the id form is the tell**:
+
+| Pick | Id |
+|---|---|
+| plain DAM asset | **base64**, decoding to `g=<guid>` (`Zz00YzkxNjkx…==` → `g=4c916912a6e411f1…`) |
+| **rendition** | **plain hex guid** (`4148f2a4a2f311f1ab9136ce69e3d3f7`) |
+
+⚠️ **Do not infer rendition-vs-original from image dimensions.** A rendition and an original can be the same pixel size; what differs is the bytes. Measured at identical 1920×1080: original **2,095,783 B** (1.01 B/px, unoptimised) vs rendition **653,482 B** (0.32 B/px, generated derivative) — a **3.2× saving for identical pixels**. That is the reason to tell editors to pick the rendition.
+
+#### Before 13.4.0, the CDN route is still the only answer
+
+On 13.1.x per-image rendition selection is not "expensive", it is **unavailable** — do not estimate it and do not promise it. Use the CDN cropping route above, which is also the only route to *automatic* cropping at any version.
+
+🟠 **And a picker that works is not a front end that uses renditions.** Editor-side capability ≠ delivered to visitors: a typed-media mapper that binds the asset's full-size `Url` will keep serving the original even after the editor picks a rendition. Check your mapping layer resolves whatever reference it is handed, and note that *automatic* rendition selection — picking the smallest rendition ≥ the render width when the editor picks the plain asset — is a separate build nobody gets for free.
 
 **If the client wants editor control** — "if the crop looks wrong, let me choose another" — give them that on **your** side rather than the DAM's: a plain aspect-ratio choice (and later a focal point) on your own image property, applied through the CDN. An enum with a selection factory is an ordinary CMS property, **not** a custom Dojo/React editor, so it stays cheap. Same editor experience, none of the platform dependency.
 

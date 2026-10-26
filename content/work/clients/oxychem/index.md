@@ -53,6 +53,8 @@ The upgrade **cut over to production on 2026-09-18** and the engagement is now p
 
 > [!warning] Integration and Production are on different CMS versions
 > `integration` runs **CMS 13.4.0** (with `OpalChat` 13.4.0, which moved onto the CMS version line at 13.2.0 and is a hard dependency of `CloudPlatform.Cms` 13.4.0). `main` — and therefore Preproduction and Production — is still on **13.1.3**. That divergence is tracked and owns a promote-or-park decision. Until it resolves, **Integration is not a faithful rehearsal of Production.** Always read the csproj on the branch you are on.
+>
+> 🟢 **The bump earns its keep: 13.4.0 fixed the DAM image-picker defect** (2026-10-22). On 13.1.3 an editor selecting a *rendition* got `Renditions cannot be used. Please select an original asset.` and the reference was never persisted — 13.1.3 shipped the refusal string and none of the implementation. Production still has that defect until the promote lands. Detail: [[work/cms13/dam-integration#per-image-rendition-selection--blocked-before-1340-working-from-1340|DAM Integration → per-image rendition selection]].
 
 It is a **multi-site** solution. Production cut over with three applications (OxyChem, Calcium Chloride, Proveedor); **Benefits** and **Enrollment** were added in production admin afterwards. Everything else in the old ~24-site estate became a redirector host rule rather than a site definition.
 
