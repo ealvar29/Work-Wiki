@@ -18,9 +18,16 @@ A presenter's runbook for a live CMS 13 demo: the new features worth showing, a 
 
 Lead with the one-liner, not a feature list:
 
-> "CMS 13 isn't a version bump — it's a platform modernization. Three things are mandatory: **.NET 10, Optimizely Graph, and Opti ID.** Everything else — Visual Builder, Opal AI, DAM — is additive once those are in place. Today I'll show the additive stuff, because that's what editors and clients actually feel."
+> "CMS 13 isn't a version bump — it's a platform modernization. Two things are mandatory: **.NET 10 and Optimizely Graph.** Opti ID is how Optimizely wants you to do identity, and it gates DAM and Opal. Everything else — Visual Builder, Opal AI, DAM — is additive once those are in place. Today I'll show the additive stuff, because that's what editors and clients actually feel."
 
 Then put up the comparison table and move on — don't dwell.
+
+> [!warning] Corrected 2026-11-03 — do not say "Opti ID is mandatory" in front of a client
+> This page used to list Opti ID as the third mandatory item. **It is not established as mandatory.** `EPiServer.Cms.UI.AspNetIdentity` **13.4.1** still ships `AddCmsAspNetIdentity`, `ApplicationUserManager`, `ApplicationRoleProvider` and `UIUserProvider` on `net10.0` — verified in the assembly during the Cambro spike (CAMI-791), where adding that single package reference dropped the CMS 13 error count from 87 to 71. [[work/clients/oxychem/index|OxyChem]] **chose** Opti ID (OX-44, citing Optimizely docs); it did not hit a compile wall.
+>
+> It matters commercially: OxyChem scoped its auth migration at **32/56/92 hours**. Telling a client it is mandatory puts that on the invoice whether or not they need it — and on a site where SAML2 is the app's default scheme rather than just editor login (as on [[work/clients/oxy/index|oxy.com]]), "replace it with Opti ID" is the wrong answer outright.
+>
+> **.NET 10 and Graph are genuinely mandatory** — Search & Navigation is removed in CMS 13. Keep saying those two.
 
 ### CMS 12 → 13 at a glance (the slide)
 

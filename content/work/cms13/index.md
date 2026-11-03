@@ -8,6 +8,21 @@ tags:
 
 Optimizely CMS 13 is the latest major version of the Optimizely Content Management System (formerly Episerver). It targets .NET 10 and introduces significant architectural changes over CMS 12.
 
+> [!warning] Check a page's date before trusting it — this section spans June to November 2026
+> **2026-09-18 is the line that matters.** That is when [[work/clients/oxychem/index|OxyChem]] went live on CMS 13. Pages written before it are pre-production theory; pages after it are field evidence. Several pages below are still on the theory side and are known to be wrong or overtaken:
+>
+> | Page | Last updated | Known problem |
+> |---|---|---|
+> | [[cms13-demo-guide\|Demo Runbook]] | 2026-07-29 | States **"Opti ID is mandatory"** — **disputed.** `EPiServer.Cms.UI.AspNetIdentity` **13.4.1** still ships `AddCmsAspNetIdentity` on net10.0 (CAMI-791, assembly-verified). Graph-mandatory is correct; Opti-ID-mandatory is not established. |
+> | [[cms12-to-cms13-case-study\|CMS 12 → 13 Case Study]] | 2026-06-23 | Pre-go-live. Cited as READ FIRST by client spikes; verify anything load-bearing. |
+> | [[upgrading-from-cms12\|Upgrading from CMS 12]] | 2026-06-23 | Pre-go-live. |
+> | [[upgrade-checklist\|Upgrade Checklist]] | 2026-07-29 | Pre-go-live. |
+> | [[search-to-graph\|Search → Graph Migration]] | 2026-08-14 | Pre-go-live, but OxyChem's Find→Graph is now **complete** — reconcile against what shipped. |
+>
+> ✅ Re-verified **2026-11-03**: [[dotnet-compatibility|.NET Compatibility]] (its .NET 8 recommendation was **withdrawn**), [[work/clients/oxy/index|oxy.com]].
+>
+> **Three clones of this wiki exist on disk.** Only `Work-Wiki` is real. A `work/cms13` folder with ~11 pages instead of ~43 is a stale copy — check the page count before reading.
+
 ## Key Changes from CMS 12
 
 - Built on **.NET 10**
