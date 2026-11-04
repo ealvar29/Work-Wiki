@@ -857,6 +857,7 @@ The CLI (`dotnet build`) works fine with the system SDK; only VS-hosted builds a
 
 ## Related
 
+- [[path-scoped-guards|Breaking Change: Path-Scoped Guards Go Dead]] — **same silent-failure family as the PropertyList gotcha above.** The editor moved `/EPiServer` → `/ui/cms`, so middleware scoped on that literal compiles, registers and never fires. Found live on a CMS 13 production site; includes the upgrade-time audit procedure
 - [[agent-quickstart|CMS 13 Upgrade — AI Agent Quickstart]] — full upgrade workflow for AI agents; all gotchas above plus phases, vendor-blocked items, and verification checklist
 - [[breaking-changes|Breaking Changes in CMS 13]] — full API removal catalog
 - [[search-to-graph|Search & Navigation → Graph Migration]] — Find replacement path (see ContentGraph SDK gotcha above)
