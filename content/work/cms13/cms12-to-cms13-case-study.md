@@ -8,6 +8,8 @@ tags:
   - search
 ---
 
+> **Provenance:** this page is based on an **external blog post** (Sanjay Katiyar, see Sources), not on one of our projects. It is not a record of the OxyChem upgrade. **OxyChem's actual hours are not recorded in this wiki.** The only OxyChem effort figure we have is the **pre-work static level-of-effort estimate of 155 / 310 / 581 h** (Oxycorp repo, branch `jaxon/OxyChem-CMS-13-Upgrade`, `UpgradePlan/upgrade-assessment.md`, 2026-05-15) — an estimate, not an actual. Don't quote either as a measured cost.
+
 A case study of migrating a search-heavy CMS 12 solution to CMS 13 on .NET 10, including the full Find → Graph rewrite. The high-level strategy is in [[upgrading-from-cms12|Upgrading from CMS 12]]; this page focuses on the patterns and pitfalls encountered in a real project.
 
 ## Migration Phases

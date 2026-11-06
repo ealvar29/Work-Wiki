@@ -55,16 +55,18 @@ The old paths 302 to `/` or 404, which presents as *"editor login is broken"* ra
 
 | Removed | Replacement |
 |---|---|
-| `SiteDefinition.Current` | `ISiteDefinitionResolver.GetByHostname()` |
+| `SiteDefinition.Current` | `IApplicationResolver` (CMS 13.5+; see version note below) |
 | `ISiteDefinitionRepository` | `IApplicationRepository` |
 | GUID-based `Id` | Immutable `Name` string |
 
-> **Verified against CMS 13.0.2 (OxyChem upgrade, May 2026):** `IApplicationResolver` does not exist in this version. Inject `IHttpContextAccessor` + `ISiteDefinitionResolver` and call:
-> ```csharp
-> var host = _httpContextAccessor.HttpContext?.Request.Host.Host;
-> var site = _siteDefinitionResolver.GetByHostname(host, fallbackToWildcard: true, out _);
-> ```
-> If official docs reference `IApplicationResolver.GetByContextAsync()`, verify it exists in your specific CMS 13 version before using it.
+> **`IApplicationResolver` is version-specific.**
+>
+> | Version | `IApplicationResolver` |
+> |---|---|
+> | CMS 13.0.x (OxyChem 13.0.2, May 2026) | ❌ Absent |
+> | CMS 13.5.1 (VHB spike, Nov 2026) | ✅ `EPiServer.Applications.IApplicationResolver` — `GetByContext` / `GetByContextAsync`, `GetByHostname` / `GetByHostnameAsync`, `GetByContent` / `GetByContentAsync` |
+>
+> On 13.5.x use `IApplicationResolver`. `ISiteDefinitionResolver.GetByHostname()` is **not** the replacement — it is part of the obsolete `SiteDefinition` shim, and was only OxyChem's stop-gap on 13.0.x where nothing better existed. Check the package version in your `.csproj` before following any guidance either way. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
 
 See [[applications-model|Applications Model]] for full details.
 
@@ -76,12 +78,14 @@ See [[search-to-graph|Search & Navigation → Graph Migration]] for the migratio
 
 ## 5. Plugin Manager Removed
 
-The Plugin Manager UI and backend are gone entirely. Scheduled jobs no longer use the `EPiServer.PlugIn` system:
+The Plugin Manager UI and backend are gone entirely. Scheduled jobs should move off the `EPiServer.PlugIn` system:
 
-| Removed | Replacement |
+| Removed / deprecated | Replacement |
 |---|---|
-| `[ScheduledPlugIn]` | `[ScheduledJob]` from `EPiServer.Scheduler` |
+| `[ScheduledPlugIn]` — **deprecated, not removed** | `[ScheduledJob]` from `EPiServer.Scheduler` |
 | Plugin Manager UI | Admin area no longer has this section |
+
+`[ScheduledPlugIn]` is still present in CMS 13.5.1 and still compiles — `Geta.Optimizely.Sitemaps` 4.0.0 (a CMS 13 package) uses it. Migrate when convenient; it is not a compile blocker. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
 
 ## 6. On-Page Editing Disabled
 
@@ -106,6 +110,8 @@ Change: `IEnumerable<IContentRepositoryDescriptor>` → `IContentRepositoryDescr
 
 New parameters added: `IApplicationResolver`, `ServiceAccessor<SystemDefinition>`
 
+Not every descriptor broke: a custom descriptor deriving from **`CollectionEditorDescriptor<T>`** (the usual `PropertyList<T>` editor) compiles unchanged on CMS 13.5.1. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)* Compiling is not the same as working — see the `PropertyList<T>` hydration gotcha in [[post-upgrade-gotchas#propertylistt-silently-returns-an-empty-list--and-optimizelys-own-advice-is-stale|Post-Upgrade Gotchas]].
+
 ## 8. TinyMCE
 
 - `AddSettingsTransform(name, delegate)` now throws if name is null/empty
@@ -129,6 +135,22 @@ New parameters added: `IApplicationResolver`, `ServiceAccessor<SystemDefinition>
 | `ContentAreaRenderer.ResolveTemplate()` | — |
 | `ContentAreaRenderer.IsInEditMode()` | — |
 | `PartialRequest` class | `IContentRenderer` or `Html.RenderPartial` |
+
+**Compile-break clusters the official docs don't list.** These were the largest groups of errors in the VHB spike against CMS 13.5.1 / Forms 6.0.2 *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata))*:
+
+| CMS 12 | CMS 13.5.1 |
+|---|---|
+| `PageEditing.PageIsInEditMode` | **Removed.** `PageEditing` keeps only its constants and `GetEditUrl`. In views: `@inject IContextModeResolver ContextModeResolver`, then `ContextModeResolver.CurrentMode == ContextMode.Edit` |
+| `CacheManager` | Obsolete **as error** — no longer compiles |
+| Forms `FormDataRepository` constructor | Signature changed in Forms 6 — subclasses / direct construction break |
+| `TemplateTypeCategories.Page` | No longer compiles — template registrations using it break (replacement not recorded by the spike) |
+| `IContentRouteHelper.Page` | No longer compiles (replacement not recorded by the spike) |
+| `ContentAreaRenderer.Get(item)` | `LoadContent(item)`, which returns **`IContentData`** (not `IContent`) |
+| `ContentAreaRenderer.IsInEditMode(htmlHelper)` | `IsInEditMode()` — no parameter |
+| `ContentAreaRenderer.ResolveTemplate(...)` | `ResolveContentTemplate(htmlHelper, content, tags)` |
+| `new ContentRenderingScope(...)` | Constructor is now `(HttpContext, IContentData, TemplateModel, IEnumerable<string>)` |
+
+Custom `ContentAreaRenderer` subclasses hit almost every row in the second half of that table at once.
 
 ## 11. Menu System
 
@@ -162,6 +184,10 @@ Until this is wired, "Visitor Groups" is simply **absent from the CMS menu**, wi
 
 Wiring it up is only half the job. **`EPiServer.Forms.Samples` has no CMS 13 build** (newest is 4.2.7, capped at `EPiServer.Forms < 6.0.0` and `EPiServer.CMS.UI < 13.0.0`), so any audience migrated from CMS 12 that uses its `FormCriterion` — "visitor has submitted form X" — loads with *"This criterion failed to load"* and matches nobody. The UI is also renamed **"Audiences"** in CMS 13 while every API route, config key and DI call still says `VisitorGroups`. See [[post-upgrade-gotchas#audiences-migrated-from-cms-12-fail-with-this-criterion-failed-to-load|Post-Upgrade Gotchas]].
 
+## 12a. Newtonsoft `UrlConverter` Removed
+
+`EPiServer.Cms.Shell.Json.Internal.UrlConverter` — the Newtonsoft converter CMS 12 used to store `Url` values as JSON strings — is **gone in CMS 13**. Nothing references it by name in most codebases, so it produces no compile error; the impact is at runtime, on `PropertyList<T>` items with `Url` members whose stored values were written by it. See [[post-upgrade-gotchas#propertylistt-silently-returns-an-empty-list--and-optimizelys-own-advice-is-stale|Post-Upgrade Gotchas → PropertyList]]. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
+
 ## 13. Async REST/Context Services
 
 | Removed | Replacement |
@@ -189,8 +215,12 @@ GA-era guidance listed Optimizely Forms, Geta packages, and anything built on Se
 | Optimizely Forms | ✅ **6.0.0 ships and works** — `services.AddForms()`. (Earlier "no CMS 13 release" guidance is obsolete.) |
 | Optimizely Graph (Find replacement) | ✅ Shipped under **renamed** packages `Optimizely.Graph.Cms` + `Optimizely.Graph.Cms.Query` 13.0.2 |
 | `Advanced.CMS.AdvancedReviews` | ✅ 2.0.0 ships for CMS 13 |
-| `Geta.NotFoundHandler.Optimizely` 6.0.0 | ⚠️ Installs, but still trips the scanner — needs assembly exclusion **and** stale-DB-job cleanup (see [[post-upgrade-gotchas|Post-Upgrade Gotchas]]) |
-| `Geta.Optimizely.Sitemaps`, `Geta.Optimizely.ContentTypeIcons` (service reg), `Addon.Episerver.EnvironmentSynchronizer` | ❌ No CMS 13 release yet |
+| `Geta.NotFoundHandler.Optimizely` | ✅ **7.1.0 is native CMS 13** (uses `IApplicationRepository`). *Historical:* 6.0.0 installed but tripped the scanner and needed assembly exclusion **and** stale-DB-job cleanup (see [[post-upgrade-gotchas|Post-Upgrade Gotchas]]) — that advice applies only if you are stuck on 6.0.0 |
+| `Geta.Optimizely.Sitemaps` | ✅ **4.0.0** (net10, CMS 13.1.0). Drops the `EnableLanguageDropDownInAdmin` option — remove it from your `AddSitemaps(...)` call. Still uses the `SiteDefinition` shim internally, so multi-site host resolution inherits that shim's behaviour |
+| `Geta.Optimizely.ContentTypeIcons` | ✅ 4.1.0 |
+| `Addon.Episerver.EnvironmentSynchronizer` | ✅ 2.0.1 |
+
+*Rows for NotFoundHandler, Sitemaps, ContentTypeIcons and EnvironmentSynchronizer updated from VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).*
 | Anything built against Search & Navigation (Find) | ❌ Find is fully removed — no compatibility path |
 
 Always check each package's release notes, but don't assume the GA-era "incompatible" list still holds.

@@ -103,6 +103,8 @@ Reflected over `lib/net10.0/EPiServer.Forms.Samples.dll`:
 
 Supporting types are all there too — `RecaptchaValidator`, `HcaptchaValidator`, `DateValidator` / `DateTimeRangeValidator`, `AddressValidator`, `GoogleAddressValidateService`, the `*ElementBlockDescriptor` editor descriptors, and the `Configuration.RecaptchaKey` / `HcaptchaKey` / `AddressKey` option classes. The Razor views ship **precompiled** into the assembly (`AspNetCoreGeneratedDocument.FormsViews_Views_ElementBlocks_*`), so there is no view-copying step.
 
+**reCAPTCHA content rebinds with no migration.** `RecaptchaElementBlock` (the reCAPTCHA **v3** element) keeps the same content-type GUID — `2D7E4A18-8F8B-4C98-9E81-D97524C62561` — from 4.2.7 to 5.0.0, so existing reCAPTCHA elements in forms re-attach to the new type on their own. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
+
 Core Forms 6.0.x ships: Captcha, Choice, FileUpload, ImageChoice, Number, ParagraphText, PredefinedHidden, Range, ResetButton, Selection, SubmitButton, Textarea, Textbox, Url, VisitorDataHidden.
 
 ### The lesson that outlived the blocker
@@ -285,6 +287,31 @@ services.AddTransient<EPiServer.Forms.Core.Internal.XhtmlRenderService>();
 ## Forms 6 injects its own stylesheet
 
 Forms 6 ships an opinionated default `EPiServerForms.css` and injects it automatically. On a site with its own form styling this arrives as unasked-for layout changes that look like a regression in your CSS. Check for it before debugging your own stylesheet.
+
+## DataSubmit route and antiforgery
+
+Sites that guard Forms submissions (e.g. catching `AntiforgeryValidationException` on the submit endpoint and returning the JSON the client expects) can keep that guard as-is. In Forms 6.0.2 *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata))*:
+
+| What | Forms 6.0.2 |
+|---|---|
+| Submit route | `/EPiServer.Forms/DataSubmit/Submit` — **unchanged** |
+| `DataSubmitController.Submit` | Now **async** |
+| Antiforgery | `DataSubmitController` **still validates** the token |
+| Client contract | `EPiServerForms` JS still reads `isSuccess` / `message` from the response |
+| `EPiServer.Forms.Internal.Security` namespace | Still exists — log-level filters keyed on it keep working |
+
+Note the route contains `/EPiServer` but is a Forms-module route, not the editor shell — see the false-positive note in [[path-scoped-guards|Path-Scoped Guards]].
+
+## Marketing Automation connectors
+
+| Package | CMS 13 status |
+|---|---|
+| `EPiServer.ConnectForCampaign` | ❌ **No CMS 13 build.** 4.3.0 (2024-06-04) is the last release, capped at `EPiServer.CMS.UI.Core < 13` and `EPiServer.Forms < 6` |
+| Delivra, Eloqua, ExactTarget, HubSpot, Marketo, MSDynamics, Pardot, Salesforce, Silverpop connectors | ✅ Shipped **13.0.1** |
+
+*(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
+
+**Replacement pattern for Optimizely Campaign:** a custom `PostSubmissionActor` that posts the submission to the Campaign REST API itself. That also lets you surface recipient-validation failures, which the old connector swallowed after the form had already reported success.
 
 ## Related
 

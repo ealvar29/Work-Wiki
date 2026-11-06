@@ -56,6 +56,15 @@ Only in files where `IContextModeResolver` is the reason for that import — not
 
 Grep the whole codebase first — expect them in 15–20+ files, well beyond anything search-related.
 
+Two more Find leftovers that break outside search code:
+
+| Leftover | Where it comes from | Replace with |
+|---|---|---|
+| `.StripHtml()` | `EPiServer.Find.Helpers.Text.StringExtensions` (same class as the methods above) | Your own HTML-stripping helper (e.g. a regex or `HtmlAgilityPack` `InnerText`) |
+| `[IndexInContentAreas]` | `EPiServer.Find.Cms` — attribute on **block types** | Delete it. Compile break lands on block model classes, not search files. |
+
+*(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
+
 ---
 
 ### Bulk-Removing `EPiServer.ServiceLocation` Using Breaks Other Types
@@ -112,15 +121,16 @@ The static `ServiceLocator.Current.GetInstance<T>()` needs no change.
 
 **Symptom:** You follow the official guidance for replacing `SiteDefinition.Current` and find references to `IApplicationResolver.GetByContextAsync()`. You add it and it doesn't compile.
 
-**Root cause:** `IApplicationResolver` does not exist in CMS 13.0.x. Some upgrade documentation and blog posts reference it (possibly a planned API or a later version), but it is not present in the released build.
+**Root cause:** `IApplicationResolver` is **version-specific**. It does not exist in CMS **13.0.x** — documentation written against a later build referenced it before the 13.0 packages shipped it. It **does** exist in CMS **13.5.1**, as `EPiServer.Applications.IApplicationResolver`, with `GetByContext` / `GetByContextAsync`, `GetByHostname` / `GetByHostnameAsync` and `GetByContent` / `GetByContentAsync`. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
 
-**Fix:** Inject `IHttpContextAccessor` and `ISiteDefinitionResolver`:
-```csharp
-var host = _httpContextAccessor.HttpContext?.Request.Host.Host;
-var site = _siteDefinitionResolver.GetByHostname(host, fallbackToWildcard: true, out _);
-```
+**Fix:** depends on the version you target.
 
-Verify against your specific CMS 13 version before trusting any documentation that names `IApplicationResolver`.
+| Target | Use |
+|---|---|
+| CMS 13.5.x (and presumably later) | `IApplicationResolver` — the native Applications-model resolver. Prefer this. |
+| CMS 13.0.x | Upgrade the packages if you can. If you are stuck on 13.0.x, the interim workaround OxyChem used was `IHttpContextAccessor` + `ISiteDefinitionResolver.GetByHostname(host, fallbackToWildcard: true, out _)` — but that is the obsolete `SiteDefinition` shim, not a long-term replacement. |
+
+Check the exact CMS 13 package version in your `.csproj` before trusting any documentation that names, or claims the absence of, `IApplicationResolver`.
 
 ---
 
@@ -299,7 +309,7 @@ Keep the `ISearchService` abstraction — wire all search controllers to it and 
 services.AddScoped<ISearchService, ContentGraphSearchService>();
 ```
 
-**Then re-index:** the index is empty until you run the **"Content Graph Full Re-index"** scheduled job against that environment's DB. Index keys are per-environment, so each env must be re-indexed independently. See [[graph-sdk|Optimizely Graph SDK]] for the query API (`GetAsContentAsync`, not `GetAsync`).
+**Then re-index:** the index is empty until you run the **"Content Graph Full Re-index"** scheduled job against that environment's DB. *(Job name unconfirmed: this wiki also calls it "Full Synchronization" — see [[graph-vs-search-navigation]]. Check the actual label in CMS admin → Scheduled Jobs.)* Index keys are per-environment, so each env must be re-indexed independently. See [[graph-sdk|Optimizely Graph SDK]] for the query API (`GetAsContentAsync`, not `GetAsync`).
 
 ---
 
@@ -394,6 +404,8 @@ Open the admin page (`/GetaOptimizelySitemaps`) and you'll see rows for every pr
 4. Re-request `/sitemap.xml` and check the URL count against production's sitemap.
 
 Leave the production rows alone — they're correct for production, and you'll want them when that environment exists.
+
+**Not a CMS 13 regression.** The same behaviour already exists on CMS 12 with Geta Sitemaps — VHB (CMS 12) logs `Xml sitemap data not found!` from `GetaSitemapController` for any `*/sitemap.xml` with no matching definition (VHBK-426). It surfaces during a CMS 13 upgrade because that is when lower environments get restored from production, not because CMS 13 changed anything.
 
 **Two things worth knowing.** First, this is **parity loss, not a missing feature**: production serves a sitemap and advertises it in `robots.txt`, so treat it as a regression rather than an enhancement. Second, `robots.txt` in a test environment usually serves `Disallow: /` — correct, but it also means **no `Sitemap:` directive**, so remember to restore that line at go-live or the sitemap ships unadvertised.
 
@@ -518,6 +530,8 @@ if (currentPage is null)
 
 Two related traps in the same components: a **hard cast** `(BasePage)currentPage` fails louder but just as fatally, and helper methods ending in `FirstOrDefault()` can return null into an AutoMapper call further down. Guard both.
 
+**.NET 7+ adds a second way to get the 500: `AllowStatusCode404Response`.** Since .NET 7, `ExceptionHandlerMiddleware` **re-throws the original exception** if the re-executed handler path itself returns 404 — unless you set `ExceptionHandlerOptions.AllowStatusCode404Response = true`. A CMS 12 site on .NET 6 never saw this; moving to .NET 10 activates it. It bites any site whose `UseExceptionHandler` path has **no endpoint** — e.g. VHB's `/error/500`. Confirm the handler path resolves to a real controller action or content item, or set the option explicitly. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
+
 **Diagnostic order that works:** compare a missing *page* against a missing *media* path. If pages 404 and media 500s, the fault is in the layout, not the ContentArea — and grepping the log for the originating frame (`…ViewModel..ctor`, `…Component.Invoke`) names the file directly.
 
 ### AutoMapper: Casting a Block to `IContent` Fails on `_DynamicProxy`
@@ -587,6 +601,8 @@ Worth checking your CMS 12 codebase for guards like this before you port. Two se
 
 The critical detail: **there is no exception anywhere.** No log line, no error, nothing. `PropertyData.IsNull` comes back `true` and the list is empty. Four separate deploys can find nothing, because there is nothing to find.
 
+**Silent at hydration, loud at render — depending on the view.** The *load* never throws, but `IsNull == true` means the property getter can return `null` rather than an empty list. Any view that iterates the property without a null check (`@foreach (var x in Model.Items)`) then throws a `NullReferenceException` and the page 500s. VHB has **6** such views, so on that codebase the failure would surface as page errors, not empty sections. Audit every view that iterates a `PropertyList<T>` property before assuming the failure will be quiet. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
+
 **The content is not lost.** Check the database before considering a re-import — the stored JSON is intact, camelCase, with rich text written as a bare HTML string:
 
 ```json
@@ -630,11 +646,20 @@ Three things that each cost a deploy:
 
 - **Member attribute, not global registration.** A converter registered in serializer options is never consulted here. This is the single distinction that matters, and it is why an STJ converter can be "already tried" and still be the answer.
 - **`ToInternalString()` on write**, not `ToHtmlString()`. The latter requires an `IPrincipal`, renders for display, and will not round-trip.
-- **`ParseItem` / `ParseToSelf` are not on the hydration path.** Overriding them produces zero log lines — a genuine negative, easily misread as "my code isn't deployed."
+- **`ParseItem` / `ParseToSelf` are not on the hydration path.** Overriding them produces zero log lines — a genuine negative, easily misread as "my code isn't deployed." This kills the **common CMS 11/12 recipe**: a `PropertyListBase<T>` that overrides `ParseItem` to deserialize through `ObjectSerializerFactory`, plus `services.AddSingleton<ObjectSerializerFactory>()` in startup. On CMS 13 it still **compiles**, so nothing flags it — but it is dead code, not on the hydration path. If your codebase has that base class, every list built on it needs the member-attribute fix below regardless.
 
 Keep a Newtonsoft attribute alongside the STJ one if you like; which serializer the platform reaches for has changed across versions and carrying both costs nothing.
 
 **Only complex members break.** Measured on the same codebase: an entry type with `ContentReference` hydrated fine; entry types with only `string` members hydrated fine. `XhtmlString` was the one that failed. Optimizely also call out `Url` and `PageReference` as candidates — verify rather than assume.
+
+OxyChem only measured `string`, `ContentReference` and `XhtmlString`. Two more member types are **untested candidates** — presume at risk until measured:
+
+| Member type | Why it is suspect |
+|---|---|
+| `Url` | CMS 12 stored `Url` members as **JSON strings**, written by Newtonsoft's `UrlConverter` in `EPiServer.Cms.Shell.Json.Internal` — a type **removed in CMS 13**. STJ has no built-in string → `Url` path, so existing stored values have nothing to read them. |
+| `LinkItemCollection` | `LinkItem.Attributes` is a **get-only dictionary**; STJ cannot populate a get-only collection member without help. |
+
+*(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata). Not yet measured at runtime.)*
 
 **The diagnostic that isolates this in one request — use a control.** Find a `PropertyList<T>` in the same solution whose item type has **only simple members**, and load both through `IContentLoader`:
 
@@ -833,6 +858,8 @@ warn: ContentDB — Could not load data for property 'X' on content with id 'N'
 
 The CLI (`dotnet build`) works fine with the system SDK; only VS-hosted builds are affected.
 
+> **Unverified as of 2026-11-05:** the 17.13 figure may be too low. The .NET 10 SDK likely needs **VS 2022 17.14 or VS 2026**, and the SDK feature band matters (the VHB spike pins `10.0.401`). Check your exact `10.0.4xx` band against Microsoft's Visual Studio / .NET SDK version mapping before telling anyone which VS to install.
+
 ---
 
 ### `global.json` SDK Pin Causes VS Project Load Failure
@@ -852,6 +879,8 @@ The CLI (`dotnet build`) works fine with the system SDK; only VS-hosted builds a
 **Reality:** Webpack 4.41.x builds cleanly under Node 22 if `node_modules` are already installed. The engine warning is cosmetic. The most common issue is not a Webpack/Node incompatibility — it's a misconfigured `output.path` in `webpack.config.js` that causes build output to land in the wrong directory (e.g., `Frontend/dist/`) instead of `wwwroot/`.
 
 **Fix:** Verify `output.path` resolves to `wwwroot/` or wire up an MSBuild `AfterTargets="Build"` copy target. No Webpack upgrade required.
+
+**Gulp-3-based frontends are different — the ceiling is gulp, not Webpack.** If the frontend runs Webpack *through gulp 3* (VHB's `static/` does), gulp 3 itself dies on **Node 12+** with `ReferenceError: primordials is not defined`. VHB builds under Node 11. Either keep the frontend build on an old Node, or upgrade gulp to 4+ — Webpack's Node tolerance is irrelevant until you do.
 
 ---
 

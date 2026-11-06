@@ -113,11 +113,12 @@ dotnet build --no-incremental 2>&1 | Select-String "error"
 
 ---
 
-### G5 — `SiteDefinition.Current` replacement is `ISiteDefinitionResolver`, not `IApplicationResolver` *(hits in Phase 1)*
+### G5 — `SiteDefinition.Current` replacement depends on your CMS 13 version *(hits in Phase 1)*
 
 **Symptom:** After replacing `SiteDefinition.Current`, compiler or runtime still fails.  
-**Cause:** Some docs/upgrade guides reference `IApplicationResolver.GetByContextAsync()` — this type does not exist in CMS 13.0.2.  
-**Fix:**
+**Cause:** `IApplicationResolver` is version-specific: **absent in CMS 13.0.x** (OxyChem 13.0.2), **present in CMS 13.5.1** as `EPiServer.Applications.IApplicationResolver` (`GetByContext(Async)`, `GetByHostname(Async)`, `GetByContent(Async)`). *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*  
+**Fix (13.5.x):** inject `IApplicationResolver` — see [[applications-model|Applications Model]]. Do not use `ISiteDefinitionResolver`; it belongs to the obsolete `SiteDefinition` shim.  
+**Fix (13.0.x only — stop-gap):**
 ```csharp
 // Inject both:
 private readonly IHttpContextAccessor _httpContextAccessor;
@@ -149,7 +150,8 @@ private void ExcludeAssemblyFromEpiServerScan(string assemblyName)
 ExcludeAssemblyFromEpiServerScan("Geta.NotFoundHandler.Optimizely");
 ExcludeAssemblyFromEpiServerScan("Geta.Optimizely.ContentTypeIcons");
 ```
-**Follow-on:** excluding the assembly is *not enough* if the old package already wrote scheduled jobs to the DB — the Admin → Scheduled Jobs page then throws `CustomAttributeFormatException: 'SortIndex'` from `ScheduledJobsController`. Add an `IInitializableModule` that deletes the orphaned jobs (filter `ScheduledJob.AssemblyName`, use `repo.Delete(job.ID)`). Full code in [[post-upgrade-gotchas|Post-Upgrade Gotchas]].
+**Follow-on:** excluding the assembly is *not enough* if the old package already wrote scheduled jobs to the DB — the Admin → Scheduled Jobs page then throws `CustomAttributeFormatException: 'SortIndex'` from `ScheduledJobsController`. Add an `IInitializableModule` that deletes the orphaned jobs (filter `ScheduledJob.AssemblyName`, use `repo.Delete(job.ID)`). Full code in [[post-upgrade-gotchas|Post-Upgrade Gotchas]].  
+**Update:** `Geta.NotFoundHandler.Optimizely` **7.1.0** is native CMS 13 (`IApplicationRepository`) and `Geta.Optimizely.ContentTypeIcons` **4.1.0** has shipped — on those versions the exclusion above is historical. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
 
 ---
 
@@ -190,7 +192,7 @@ ExcludeAssemblyFromEpiServerScan("Geta.Optimizely.ContentTypeIcons");
 services.AddContentGraph();        // indexing/sync
 services.AddGraphContentClient();  // IGraphContentClient — namespace Optimizely.Cms.DependencyInjection
 ```
-Keep an `ISearchService` abstraction and back it with a real `ContentGraphSearchService`. Query via `GetAsContentAsync()` (not `GetAsync()`); the result is `IEnumerable<T>` (no `.Items`). Then run the **"Content Graph Full Re-index"** job per environment — the index starts empty. See [[graph-sdk|Graph SDK]].
+Keep an `ISearchService` abstraction and back it with a real `ContentGraphSearchService`. Query via `GetAsContentAsync()` (not `GetAsync()`); the result is `IEnumerable<T>` (no `.Items`). Then run the **"Content Graph Full Re-index"** job per environment — the index starts empty (job name unconfirmed: the wiki also calls it "Full Synchronization" — check the actual label in CMS admin → Scheduled Jobs). See [[graph-sdk|Graph SDK]].
 
 ---
 
@@ -204,13 +206,19 @@ Keep an `ISearchService` abstraction and back it with a real `ContentGraphSearch
 | Optimizely Graph (real search) | ✅ Shipped (renamed) | `Optimizely.Graph.Cms` + `Optimizely.Graph.Cms.Query` 13.0.2; `AddContentGraph()` + `AddGraphContentClient()` — see G10 |
 | `Advanced.CMS.AdvancedReviews` 2.0.0 | ✅ Shipped | `services.AddAdvancedReviews()` |
 
-**Still blocked — no CMS 13-compatible release:**
+**Shipped since June 2026** *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata))*:
+
+| Package / Feature | CMS 13 status | Notes |
+|---|---|---|
+| `Geta.Optimizely.Sitemaps` 4.0.0 | ✅ Shipped (net10, CMS 13.1.0) | Drops the `EnableLanguageDropDownInAdmin` option; still uses the `SiteDefinition` shim internally. Replaces 3.2.1, which referenced the removed `ISynchronizedObjectInstanceCache` |
+| `Geta.Optimizely.ContentTypeIcons` 4.1.0 | ✅ Shipped | Replaces 3.1.0, whose `AddContentTypeIcons()` failed and needed scan exclusion |
+| `Addon.Episerver.EnvironmentSynchronizer` 2.0.1 | ✅ Shipped | Replaces 1.3.x (`[ScheduledPlugIn(SortIndex=)]`). Feed it the synthetic `Site_<GUID>` name — see [[applications-model|Applications Model]] |
+| `Geta.NotFoundHandler.Optimizely` 7.1.0 | ✅ Native CMS 13 | Uses `IApplicationRepository`; the 6.0.0 exclusion/stale-job workaround is historical |
+
+**Still blocked:**
 
 | Package / Feature | Status | Re-enable trigger |
 |---|---|---|
-| `Geta.Optimizely.Sitemaps` | 3.2.1 references removed `ISynchronizedObjectInstanceCache` | When Geta ships CMS 13 version |
-| `Geta.Optimizely.ContentTypeIcons` | 3.1.0 — package can stay referenced for the icon *attributes* on models, but `AddContentTypeIcons()` service reg fails (uses removed `EPiServer.Cms.Shell` extension) and the assembly must be scan-excluded | When Geta ships CMS 13 version |
-| `Addon.Episerver.EnvironmentSynchronizer` | 1.3.x uses `[ScheduledPlugIn(SortIndex=)]` removed in CMS 13 | When vendor ships a true CMS 13 build |
 | Auth / SAML2 / Opti ID | Separate engagement | After DXP provisioning |
 
 ---
@@ -220,7 +228,7 @@ Keep an `ISearchService` abstraction and back it with a real `ContentGraphSearch
 | CMS 12 | CMS 13 | Notes |
 |---|---|---|
 | `EPiServer.Web.Routing.IContextModeResolver` | `EPiServer.Web.IContextModeResolver` | Fix first — cascades |
-| `SiteDefinition.Current` | `ISiteDefinitionResolver.GetByHostname()` | `IApplicationResolver` doesn't exist |
+| `SiteDefinition.Current` | `IApplicationResolver.GetByContextAsync()` (13.5.x) | Absent in 13.0.x — there, `ISiteDefinitionResolver.GetByHostname()` as a stop-gap (see G5) |
 | `context.Locate.Advanced.GetInstance<T>()` | `context.Locate.Advanced.GetRequiredService<T>()` | Add `using Microsoft.Extensions.DependencyInjection` |
 | `ServiceLocator.Current.GetInstance<T>()` | Still works | Static method, not affected |
 | `IFirstRequestInitializer` (enumerable) | `IBlockingFirstRequestInitializer` | Different interface for enumerable registration |

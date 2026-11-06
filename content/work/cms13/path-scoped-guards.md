@@ -64,6 +64,8 @@ The durable version of this guard was already discovered on oxy.com under ADO **
 
 **Routing state is not a string.** `GetEndpoint() is null` means "routing has not yet selected an endpoint", which is a structural fact about where in the pipeline the throw happened — it cannot be invalidated by a rename, a shell upgrade or a config change. The matcher policy runs before routing picks an endpoint, and `StatusCodePages` clears the endpoint before re-executing, so one condition covers both passes.
 
+> **This rewrite only suits guards that catch a throw *before routing*.** For a guard that wraps a real endpoint — e.g. one catching `AntiforgeryValidationException` from a controller action — routing has already selected that endpoint when the exception surfaces, so `GetEndpoint()` is non-null and the rewritten guard **never fires**. That is the same dead-guard bug, introduced by the fix. For those guards, keep a path (or endpoint-metadata) scope and follow the steps below. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
+
 Where routing state genuinely will not distinguish the cases and you must scope on a path, then:
 
 1. **Read the path from configuration, not a literal.** Bind the shell base path once and reference it.
@@ -76,6 +78,7 @@ Run this *during* the upgrade, not after:
 
 1. **Grep every literal platform path in middleware, filters and attributes.** `/EPiServer`, `/Optimizely`, `/episerver`, `/util`, `/modules`, `/ui`. Include `Contains`, `StartsWith`, `StartsWithSegments`, `Equals` and route templates.
 2. **For each hit, ask: is this path still what the platform uses?** Do not assume the compile proved it.
+   - **Known false positive: `/EPiServer.Forms/DataSubmit`.** It matches a `/EPiServer` grep, but it is a **Forms-module** route, not the editor shell, and it is **unchanged in Forms 6.0.2**. A guard scoped on it (e.g. VHB's antiforgery guard on `/EPiServer.Forms/DataSubmit`) is still live on CMS 13 — leave it alone. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
 3. **Re-scope on routing state where possible**; otherwise configuration + a boot assertion.
 4. **Exercise each guard deliberately before sign-off.** A guard that has never been seen to fire on the new version has not been tested.
 

@@ -535,6 +535,21 @@ the environment name, e.g. `Integration`, so `appsettings.Integration.json` load
 automatically.) You may also see leftover `EPiServer:Find:*` env vars injected even on a
 Find-free CMS 13 site — harmless, just unused.
 
+### What `EPiServer.CloudPlatform.Cms` 13.x drags in
+
+`EPiServer.CloudPlatform.Cms` 13.x *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447,
+CMS 13.5.1 / Forms 6.0.2 package metadata))*:
+
+- **caps `Microsoft.ApplicationInsights.AspNetCore` below 3.0** — a direct reference to 3.x will
+  not resolve alongside it;
+- **hard-pins `Optimizely.Cms.OpalChat`**;
+- **pulls in `EPiServer.Telemetry.Segment`** transitively.
+
+The last two put new third-party client-side code on the table. **For sites under a CIPA /
+consent-gating regime, re-run a live browser Network capture after upgrading** — a
+package-injected tracker is invisible to a source grep, so the pre-upgrade inventory is not
+evidence for the post-upgrade site. See also [[dotnet-compatibility|.NET Compatibility]].
+
 ## Reading the *real* startup error (the deployment log won't have it)
 
 This is the single biggest time-saver. When the slot 503s, the **DXP deployment log**
@@ -598,7 +613,8 @@ System.MissingMethodException: Method not found:
 - Here `Geta.NotFoundHandler.Optimizely 6.0.0` is the **CMS 12** build; CMS 13 changed
   `PageData.ParentLink` (was `PageReference`). Every content **Publish** crashed.
 - **Stopgap:** disable the offending feature (`AutomaticRedirectsEnabled = false`).
-- **Proper fix:** upgrade to the CMS 13 build (`7.0.0`, targets net10.0, deps
+- **Proper fix:** upgrade to the CMS 13 build (`7.0.0+`, `7.1.0` current — natively uses
+  `IApplicationRepository`; 7.0.0 targets net10.0, deps
   `EPiServer.CMS.UI.Core 13.1.0`). Note a package's CMS 13 build often pulls a newer
   EPiServer minor (13.0.x → 13.1.x), so treat it as a coordinated bump, not a hotfix.
 - Lesson: after upgrading, **exercise content events** (publish/move/delete), not just page

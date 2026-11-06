@@ -59,6 +59,18 @@ From oxy.com's CMS 12 → .NET 10 move (143137). None are CMS-13-specific; any p
 - **.NET 6 cookies fail MAC exactly once under .NET 10** — every signed-in user re-logs in once. Expected, not a defect; warn the client.
 - **`IPageRouteHelper` returns `null` on non-content routes** from CMS 12.24 (12.21 fell back to the start page). This is a CMS-version trap that surfaces during the same upgrade window, so it reads like a .NET 10 regression and is not one.
 
+## Package constraints from `EPiServer.CloudPlatform.Cms` 13.x
+
+On DXP, `EPiServer.CloudPlatform.Cms` 13.x constrains the dependency graph *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata))*:
+
+| Constraint | Consequence |
+|---|---|
+| `Microsoft.ApplicationInsights.AspNetCore` **< 3.0** | You cannot take App Insights 3.x on DXP until this cap moves |
+| Hard-pins `Optimizely.Cms.OpalChat` | Opal chat ships whether or not you use it |
+| Pulls in `EPiServer.Telemetry.Segment` | New telemetry dependency |
+
+**CIPA-relevant:** the last two can add client-side third-party traffic. On a consent-gated site, **re-run a live Network capture after upgrading** rather than trusting the pre-upgrade tracker inventory. See [[deploying-to-dxp|Deploying to DXP]].
+
 ## Sources
 
 - [Stuart Greig — Running Optimizely CMS 13 on .NET 11 Preview](https://stuartgreig.dev/blog/running-optimizely-cms-13-on-net-11-preview/) *(Apr 2026)*

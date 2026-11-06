@@ -15,6 +15,7 @@ A consolidated checklist synthesized from the official docs, Robert Svallin's up
 - [ ] **Audit Search & Navigation usage** — S&N is removed in CMS 13; plan your Graph migration before starting
 - [ ] **Check Commerce version** — CMS 13 is incompatible with Commerce 14; wait for Commerce 15
 - [ ] **Check third-party packages** — Forms, Geta, and others may need updates; verify CMS 13 support for each
+- [ ] **Back up every environment's database before CMS 13 code first boots against it** — the schema upgrade on first boot is **one-way**. And **never boot CMS 13 code against a database that content-sync copies downward** (e.g. a Preproduction DB that will later be copied to Integration, or any DB that a `Production → Preproduction → Integration` sync still targets while CMS 12 code runs there): the upgraded schema travels with the copy and a CMS 12 target then fails startup with `The assemblies for 'CMS' have not been updated to work with the current database version`. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
 
 ## Step 1 — Retarget to .NET 10
 
@@ -22,11 +23,13 @@ Update `global.json`:
 ```json
 {
   "sdk": {
-    "version": "10.0.102",
+    "version": "10.0.401",
     "rollForward": "latestMinor"
   }
 }
 ```
+
+Pick a current SDK band rather than copying a number: OxyChem pins `10.0.300`; the VHB spike used `10.0.401`. (This example previously showed `10.0.102`, which is stale.)
 
 Update `.csproj`:
 ```xml
@@ -34,6 +37,16 @@ Update `.csproj`:
 ```
 
 Fix any compile errors at this stage before touching CMS packages. Third-party packages that don't support .NET 10 need to be resolved now.
+
+## Step 1a — Update CI Pipeline Pins
+
+The repo retarget is not enough if the build pipeline pins its own SDK/TFM. Check every pipeline YAML for:
+
+- [ ] `UseDotNet@2` — bump `version:` to the .NET 10 SDK, or set `useGlobalJson: true` so `global.json` is the single source of truth
+- [ ] Any TFM variable (e.g. `net6.0` / `net8.0` used to build publish paths)
+- [ ] Path filters or artifact globs containing `*net6.0*` (or your old TFM) — these silently match nothing after the retarget
+
+*(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
 
 ## Step 2 — Upgrade NuGet Packages
 
@@ -58,23 +71,27 @@ services.Configure<DataAccessOptions>(options =>
 });
 ```
 
-**Optimizely Graph (mandatory)** in `appsettings.json`:
+**Optimizely Graph (mandatory)** — non-secret settings in `appsettings.json`:
 ```json
 "Optimizely": {
   "ContentGraph": {
     "GatewayAddress": "https://cg.optimizely.com",
     "SingleKey": "YOUR_SINGLE_KEY",
-    "AppKey": "YOUR_APP_KEY",
-    "Secret": "YOUR_SECRET"
+    "AppKey": "YOUR_APP_KEY"
   }
 }
 ```
 
-**Register Graph and Content Manager** (order matters):
+**Do not put `Secret` in `appsettings.json`.** On DXP, the platform injects `Optimizely__ContentGraph__*` environment variables on deployment, which override the file per environment. For local dev, use user-secrets or an untracked `appsettings.Development.json`.
+
+**Register Graph (both sides) and Content Manager** (order matters):
 ```csharp
-services.AddContentGraph();      // Must come before AddContentManager
+services.AddContentGraph();        // indexing/sync — must come before AddContentManager
+services.AddGraphContentClient();  // query client — namespace Optimizely.Cms.DependencyInjection
 services.AddContentManager();
 ```
+
+Without `AddGraphContentClient()`, anything querying Graph fails with `Unable to resolve service for type 'Optimizely.Graph.Cms.Query.IGraphContentClient'` — see [[post-upgrade-gotchas#the-content-graph-sdk--right-package-name--two-di-registrations|Post-Upgrade Gotchas]].
 
 ## Step 4 — Fix API Replacements
 
@@ -118,6 +135,8 @@ Add to `_ViewImports.cshtml`:
 // Use this instead
 [ScheduledJob]  // from EPiServer.Scheduler
 ```
+
+`[ScheduledPlugIn]` is deprecated, not removed — it still compiles on 13.5.1, so this step is cleanup rather than a compile blocker. See [[breaking-changes#5-plugin-manager-removed|Breaking Changes §5]].
 
 ## Step 7 — Fix ContentArea
 
@@ -164,10 +183,12 @@ For DXP-hosted projects, the recommended approach to minimise downtime is **Proj
 1. Submit support ticket requesting "Project Migration for CMS 13"
 2. A "Project Migration" tab appears in the Developer Portal
 3. Deploy updated packages to the new CMS 13 environment
-4. Run **Optimizely Graph Full Synchronization** job after content copy
+4. Run **Optimizely Graph Full Synchronization** job after content copy *(the wiki also calls this job "Content Graph Full Re-index" — check the actual label in CMS admin → Scheduled Jobs)*
 5. Activate maintenance mode on source → click **Go Live**
 
 Source project is retained for 14 days after migration.
+
+> **Open question:** the wiki does not record whether OxyChem went live via an **in-place deploy** or **Project Migration**. Confirm before citing OxyChem as precedent for either path.
 
 ## What You Gain
 

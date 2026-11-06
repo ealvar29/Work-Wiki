@@ -49,18 +49,8 @@ public class SearchController : Controller
 ```
 
 > **Operational step — don't forget the re-index.** Each environment has its own Graph index keyed by a per-environment AppKey/SingleKey in `appsettings`. A fresh CMS 13 index is **empty** until you run the **"Content Graph Full Re-index"** scheduled job (Admin → Scheduled Jobs) against that environment's database. Re-indexing prod does not populate dev, and vice-versa. (CMS 13 Graph answers the `_Content` root field; a CMS-12-era index answers `Content` — pointing a CMS 13 app at an un-reindexed CMS 12 index errors `Cannot query field "_Content"`.)
-
-```csharp
-public class SearchController : Controller
-{
-    private readonly IGraphContentClient _graphClient;
-
-    public SearchController(IGraphContentClient graphClient)
-    {
-        _graphClient = graphClient;
-    }
-}
-```
+>
+> *Job name unconfirmed:* the wiki also calls this job **"Full Synchronization"** (see [[graph-vs-search-navigation|Graph vs Search & Navigation]]). Check the actual label in CMS admin → Scheduled Jobs.
 
 ## Three Query Entry Points
 
@@ -234,7 +224,7 @@ string graphql = _graphClient
 | Take | `.Take(10)` | `.Limit(10)` |
 | Select/project | `.Select(x => new {})` | `.Fields<T>(x => x.Field)` |
 | Execute sync | `.GetResult()` | N/A — async only |
-| Execute async | `.GetResultAsync()` | `.GetAsync()` |
+| Execute async | `.GetResultAsync()` | `.GetAsContentAsync()` on the `QueryContent<T>()` path (see field note above); `.GetAsync()` only on the `Query<T>()` POCO path |
 | Wildcard | `.MatchWildcard("app*")` | `.Like("app%")` |
 
 **Note on naming:** `Contains`, `StartsWith`, `EndsWith` are renamed to `FilterContains`, `FilterStartsWith`, `FilterEndsWith` in the Graph SDK to avoid conflicts with LINQ.

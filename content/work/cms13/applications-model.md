@@ -9,6 +9,8 @@ tags:
 
 CMS 13 replaces `SiteDefinition` entirely with a new **Applications** model. If your code references `SiteDefinition`, `ISiteDefinitionRepository`, or `SiteDefinition.Current`, all of it needs to change.
 
+**But the compiler won't tell you.** `SiteDefinition` survives in CMS 13.5.1 as an **obsolete adapter** over the Applications model, and `SiteDefinition.Current`, `.SiteUrl` and `.StartPage` all still compile. So the old code produces **no compile errors** — which is exactly why the wrong-site behaviour on multi-site instances is silent (see [[post-upgrade-gotchas#sitedefinitioncurrent-compiles-doesnt-throw-and-returns-the-wrong-site|Post-Upgrade Gotchas]]). Grep for `SiteDefinition` rather than waiting for the build to find it. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
+
 ## The New Classes
 
 ```
@@ -18,6 +20,8 @@ Application (base)
 ```
 
 Both inherit from `Application`. Use `Website` for traditional server-rendered sites, `RemoteWebsite` for decoupled frontends.
+
+In CMS 13.5.1, `Website` exposes `EntryPoint` (the start page), `Url`, `Hosts` and `AssetsRoot`. *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).)*
 
 ## IApplicationRepository — Replaces ISiteDefinitionRepository
 
@@ -33,6 +37,8 @@ var all = await applicationRepository.ListAsync<Application>();
 ```
 
 ## IApplicationResolver — Replaces SiteDefinition.Current
+
+> **Version note:** `IApplicationResolver` (`EPiServer.Applications`) is present in CMS **13.5.1** but was **absent in 13.0.x** (OxyChem, 13.0.2). On 13.0.x the code below does not compile. See [[breaking-changes#3-sitedefinition--applications|Breaking Changes §3]].
 
 ```csharp
 // By current HTTP context (most common)
@@ -55,7 +61,7 @@ As of Preview 4, start page resolution is simplified — don't use `IApplication
 var startPage = ContentReference.StartPage;
 ```
 
-Prior to Preview 4, the workaround was `_applicationResolver.GetByContextAsync()` → cast to `Website` → read `RoutingEntryPoint`. That approach is now obsolete.
+Prior to Preview 4, the workaround was `_applicationResolver.GetByContextAsync()` → cast to `Website` → read `RoutingEntryPoint`. That approach is now obsolete. (In 13.5.1 the property on `Website` is named **`EntryPoint`** — `RoutingEntryPoint` is not among `Website`'s members in that version.)
 
 ## Setting Up an Application After Upgrade
 
@@ -85,7 +91,7 @@ This also affects static asset folders if you use the multi-site NuGet plugin:
 
 | CMS 12 | CMS 13 |
 |---|---|
-| `SiteDefinition.Current` | `await applicationResolver.GetByContextAsync(ct)` |
+| `SiteDefinition.Current` | `await applicationResolver.GetByContextAsync(ct)` (13.5+; absent in 13.0.x) |
 | `ISiteDefinitionRepository` | `IApplicationRepository` |
 | `SiteDefinition.Id` (GUID) | `Application.Name` (immutable string) |
 | Sync resolution APIs | All async |

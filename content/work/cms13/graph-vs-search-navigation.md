@@ -72,6 +72,8 @@ It was the last unmeasured step in that runsheet and turned out to be the cheape
 
 Which job to run:
 
+> **Job name unconfirmed.** This page (and the upgrade checklist) call it **"Full Synchronization"**; [[graph-sdk|Graph SDK]] and [[post-upgrade-gotchas|Post-Upgrade Gotchas]] call it **"Content Graph Full Re-index"** (as does point 3 above). Both names appear in the wiki — check the actual label in CMS admin → Scheduled Jobs before writing it into a runsheet.
+
 | Job | Use when |
 |---|---|
 | **Full Synchronization** | The index is empty — a new environment, or straight after a Graph re-provision |

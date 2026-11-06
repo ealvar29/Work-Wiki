@@ -21,6 +21,8 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 >
 > ✅ Re-verified **2026-11-03**: [[dotnet-compatibility|.NET Compatibility]] (its .NET 8 recommendation was **withdrawn**), [[work/clients/oxy/index|oxy.com]].
 >
+> 🟠 **Open gap (2026-11-05):** VHBK-499 cites an OxyChem **"C15 to C37 agent-editability conversion pattern"** — it is **referenced but not documented anywhere in this wiki**. Don't cite it as a known pattern until someone writes it up.
+>
 > **Three clones of this wiki exist on disk.** Only `Work-Wiki` is real. A `work/cms13` folder with ~11 pages instead of ~43 is a stale copy — check the page count before reading.
 
 ## Key Changes from CMS 12

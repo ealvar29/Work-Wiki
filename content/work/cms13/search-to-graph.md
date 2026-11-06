@@ -190,7 +190,7 @@ So there is **no separate ContentArea configuration to find** — mark the block
 - Entries arrive as **raw HTML** (`<h2>…</h2>\n<p>…</p>`) — strip tags and decode entities before display. CMS 12 ran `WebUtility.HtmlDecode` over `hit.Excerpt` for the same reason.
 - **Content-item names are in there too** (`"Chlor-Alkali C9 Intro"`). Find indexed names as well so it isn't a regression, but any snippet builder must skip them — keeping only entries containing HTML tags is a workable heuristic.
 
-### 3. Graph has no excerpt or highlight API
+### 3. Graph has highlighting, but no query-centred excerpts
 
 Find produced result descriptions from `hit.Excerpt` — server-side, **query-aware** (the snippet centres on the matched terms):
 
@@ -198,11 +198,13 @@ Find produced result descriptions from `hit.Excerpt` — server-side, **query-aw
 Description = WebUtility.HtmlDecode(hit.Excerpt),
 ```
 
-Graph has no equivalent. Snippets must be synthesised client-side, and a naive "join the indexed text and truncate" is **not** the same thing — it always shows the start of the page rather than the matched region.
+Graph **does** highlight: the SDK takes a `highlightTag` on `UsingFullText(...)` and `UsingField(...)` (see [[graph-sdk|Graph SDK]]), which wraps matched terms in the returned text. What it lacks is the **excerpt** — a snippet cut out around the matched region. Snippets must still be synthesised client-side, and a naive "join the indexed text and truncate" is **not** the same thing — it always shows the start of the page rather than the matched region. *(An earlier revision of this section said Graph had no highlight API at all; that contradicted the SDK page and was wrong.)*
 
 ### 4. No UnifiedSearch — pages and files are separate roots
 
 Find's `UnifiedSearchRegistry` gave one ranked list across pages and media with a single `TotalMatching`. In Graph you query `_Page` / `_Media` (or `_Content`) and reconcile yourself. **Watch the total:** taking it from the pages query alone means a document-heavy site reports `total: 0` while rendering file results — the UI says "no results" over a populated list.
+
+> **Caveat (applies to this section and §5):** summing `_Page` + `_Media` only reproduces Find's behaviour where the Find query actually **spanned media** (`UnifiedSearch` / `UnifiedSearchFor`). A CMS 12 search built on `client.Search<SomePageType>()` never returned files — adding a `_Media` query there changes the results rather than preserving them. Check which Find query each search used before porting it.
 
 ### 5. Site scoping: use `_metadata.url.base`, never `url.default`
 
@@ -356,9 +358,22 @@ A whole category dropping to zero is the signal. On the site above, one query re
 _t_hit.id=EPiServer_Find_Framework_BestBets_ExternalUrlBestBet/AZuAsrxHJT1ji6Yw4u8L
 ```
 
-**Export the Best Bets list while CMS 12 is still live.** It lives in Find's admin, not in your database or your repo, and it goes away with the index — and since there is no automated migration, that export *is* your migration input. You will also need to map content IDs to Graph GUIDs. The search-statistics history dies with it too. Both are unrecoverable after the upgrade, and both are things you will wish you had.
+**Inventory the Best Bets while CMS 12 is still live — but they are not lost with the index.** Best Bets are **Dynamic Data Store rows in the CMS database**, so they survive the upgrade and a `.bacpac`, and can be extracted with SQL afterwards (queries in [[graph-vs-search-navigation#best-bets-survive--theyre-in-the-database-not-the-index|Graph vs Search & Navigation]]). Since there is no automated migration, that inventory *is* your migration input; you will also need to map content IDs to Graph GUIDs. What genuinely **is** unrecoverable is the **search-statistics history** — it is index-side telemetry and dies with the Find index, so export that before the upgrade. *(An earlier revision said Best Bets lived only in Find's admin and died with the index; that contradicted the DDS finding on the linked page.)*
 
 Docs: [Migrate Best Bets to Pinned Results](https://docs.developers.optimizely.com/platform-optimizely/docs/migrate-pinned-results).
+
+### 13. Further Find features with no like-for-like Graph port
+
+Found in the VHB Find inventory *(VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata))*. Each needs an explicit decision, not a silent drop:
+
+| Find feature | What it did | Graph situation |
+|---|---|---|
+| `.Track()` + `find.js` | Click / search statistics, and the `_t_*` querystring on hits | No Graph equivalent — analytics must come from elsewhere (e.g. GA events) |
+| `UsingAutoBoost()` | Recency boost — newer content ranks higher | No built-in equivalent found; would need an explicit date boost or sort |
+| Named-predicate `FilterFacet("name", predicate)` | A facet count for an arbitrary filter expression | Graph facets are per-field; arbitrary-predicate counts need a separate `limit:0` query per facet |
+| Prefix wildcard (`term + "*"`) | Prefix matching in search-as-you-type | Re-test on Graph — wildcard/prefix semantics differ, so don't port the string concatenation blind |
+| `Take(1000)` and similar large page sizes | One request for everything | Graph enforces a **per-request `limit` ceiling**. *Unverified as of 2026-11-05: the exact ceiling value has not been measured — check it before relying on a single large request, and page if needed.* |
+| Manual `ContentIndexer.Instance.Index(...)` on publish | Forced re-index of related content from event handlers | Graph syncs on publish itself; hand-rolled indexing calls have no target and must be removed or re-thought (e.g. dependent content that must re-sync when a referenced item changes) |
 
 ### Baselining recall: four traps that manufacture false blockers
 
