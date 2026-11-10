@@ -13,9 +13,9 @@ Read `CLAUDE.md` first. Its quality criteria, page structure, tone rules and the
 
 ## Steps
 
-1. Fetch `https://world.optimizely.com/blogs/?feed=RSS`. It holds only the latest 20 items.
-2. Skip any item whose URL is already in `automation/blog-feed-log.md`. Also skip any item whose **title** matches a logged item, since the same post can be syndicated from two URLs.
-3. For each remaining item, **open the article itself**. Many feed descriptions are one-line excerpts.
+1. The runner has already downloaded every post not yet in `automation/blog-feed-log.md` to `automation/.inbox/`, one file per post: `title`, `url` and `published` lines, then the article as plain text. **You have no web access and don't need it.**
+2. Skip any post whose **title** matches a row already in the log (or another inbox file), since the same post can be syndicated from two URLs. Log it as `reject` with reason "duplicate of <url>".
+3. If a file says `ARTICLE DOWNLOAD FAILED`, judge from the feed description only if it is clearly enough; otherwise log it as `defer`.
 4. Decide one outcome per item:
 
    | Outcome | When |
