@@ -884,6 +884,12 @@ The CLI (`dotnet build`) works fine with the system SDK; only VS-hosted builds a
 
 ---
 
+### CMS 13.5 Replaces the Logo and Login Page
+
+After upgrading to `EPiServer.CMS` **13.5.0** the login page and editor UI use the new Optimizely logo. If you customised the login page (own CSS, or images replaced under `/Util/images/`), **re-check it**: some files were renamed or removed and the stylesheet was rewritten. CMS 12 did not get the new look, including 12.35.0. *Per Tomas Hensrud Gulla, 2026-10-30.*
+
+---
+
 ## Related
 
 - [[path-scoped-guards|Breaking Change: Path-Scoped Guards Go Dead]] — **same silent-failure family as the PropertyList gotcha above.** The editor moved `/EPiServer` → `/ui/cms`, so middleware scoped on that literal compiles, registers and never fires. Found live on a CMS 13 production site; includes the upgrade-time audit procedure
@@ -896,3 +902,4 @@ The CLI (`dotnet build`) works fine with the system SDK; only VS-hosted builds a
 
 - [Optimizely CMS 13 and errors when creating pages after upgrade — Tomas Hensrud Gulla (OMVP), gulla.net, 2026](https://www.gulla.net/en/blog/optimizely-cms-13-and-errors-when-creating-pages-after-upgrade)
 - Internal upgrade field notes — Jaxon Digital, May 2026
+- [Tomas Hensrud Gulla — New logo and login page in Optimizely CMS 13.5](https://www.gulla.net/en/blog/new-logo-and-login-page-in-optimizely-cms-13.5/) *(2026-10-30)*

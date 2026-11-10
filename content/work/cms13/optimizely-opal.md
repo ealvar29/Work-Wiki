@@ -123,9 +123,42 @@ In normal operation Graph indexes **on publish (real-time, event-driven)** — t
 | 404 on `opal.optimizely.com/hypatia/api/v1/{id}/agents/opal_personalization` | Empty agent path (instance id is Opal-derived, ≠ Opti ID InstanceId) | Non-fatal |
 | Worked before, now "Connection lost" on one machine | Browser tracker-blocker / blocked 3rd-party cookies | Test in a clean profile; whitelist the domain |
 
+## Building Your Own Custom Tool (C# SDK)
+
+Separate from the shipped `Optimizely.Cms.Opal.Tools`: you can expose your own logic to Opal with the **`Optimizely.Opal.Tools`** SDK (.NET 8+). *Per Adnan Zameer, 2026-11-02, against version 0.7.8, which is pre-1.0 so the API may change.*
+
+| Gotcha | Detail |
+|---|---|
+| **Package name trap** | `OptimizelyOpal.OpalToolsSDK` is the old package, now unlisted. Older docs still link to it. Use `Optimizely.Opal.Tools` |
+| **Naming** | Opal was rebranded **Agent Platform** (assistant: Mark) from 2026-09-01, but the SDK still says Opal: `AddOpalToolService`, `AddOpalTool<T>`, `MapOpalTools`, `[OpalTool]` |
+| **Endpoints** | `MapOpalTools()` exposes `GET /discovery` and `POST /tools/{tool-name}` (plus callback and interaction routes). A prefix such as `MapOpalTools("opal")` moves discovery to `/opal/tools/discovery` |
+| **Nothing validates the bearer token for you** | The token entered in **Connectors > Registries** only tells Opal what to send. Without your own middleware, anyone who finds the URL can call the tools |
+| **Tools run as the service, not the user** | `IContentLoader` applies no per-user access rights; filter results yourself before returning names or URLs |
+| **Parameters are untrusted** | An LLM chooses them. Validate with `[StringLength]` / `[RegularExpression]` |
+
+```csharp
+builder.Services.AddOpalToolService();
+builder.Services.AddOpalTool<ContentStatusTool>();
+// ...
+app.UseMiddleware<OpalBearerTokenMiddleware>();   // your own check, e.g. FixedTimeEquals on Opal:BearerToken
+app.MapOpalTools();
+```
+
+```csharp
+[OpalTool(Name = "count-draft-pages")]
+[Description("Counts pages with an unpublished draft under a root page")]
+public object CountDraftPages(DraftPageCountParameters parameters) { /* ... */ }
+```
+
+The post notes Opti ID is the only provider its source docs list for tool authentication; check the current "Create custom tools" page before relying on a bearer token.
+
 ## Related
 
 - [[ai-assistant|AI Assistant v4]] — Luc Gosso's *community* AI package (different product; don't confuse with Opal)
 - [[graph-vs-search-navigation|Graph vs Search & Navigation]] — how the index Opal reads is built
 - [[cms13-demo-guide|CMS 13 Demo Runbook]] — includes the Opal live-demo segment
 - [[cms13-technical-qa|CMS 13 Technical Q&A]] — Opal subscription/licensing answers
+
+## Sources
+
+- [Adnan Zameer — Build Your First Opal Tool in C#](https://www.adnanzameer.com/2026/10/build-your-first-opal-tool-in-csharp.html) *(2026-11-02)*

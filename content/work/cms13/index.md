@@ -48,6 +48,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[what-is-cms13|What is CMS 13?]]
 - [[dotnet-compatibility|.NET Compatibility]]
 - [[visual-builder|Visual Builder]]
+- [[astro-visual-builder|Visual Builder with Astro (no Next.js)]] — what a framework-neutral front end has to rebuild, plus a Next.js → Astro strangler experiment
 - [[applications-model|Applications Model]] — replaces SiteDefinition
 
 ## Upgrading

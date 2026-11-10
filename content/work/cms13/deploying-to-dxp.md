@@ -694,7 +694,27 @@ there). Your deployed app is on the slot.
 - [ ] After go-live: fix host bindings in admin if needed, then run Graph re-index
 - [ ] Don't trust a green pipeline — confirm the slot serves 200
 
+## Node.js security advisory (October 2026): rebuild to get the patched runtime
+
+On 2026-10-27 Optimizely published a security advisory for Node.js **22.x, 24.x and 26.x**, with no evidence of exploitation. Patching is automatic for most SaaS customers, but **CMS PaaS, Commerce Connect and Frontend Hosting** may need to act. *Per Madhu Anbalagan's summary of the advisory and Optimizely Support, 2026-11-02; read the advisory itself before acting.*
+
+| Your solution | Action |
+|---|---|
+| Proxies Node.js processes through the .NET app, or uses Frontend Hosting | **Deploy a package with a new name or version number.** It may contain the same code as production |
+| No Node.js at build or runtime | Nothing to do per Support |
+| `nodeVersion` is 18 or 20 | End of life: move to a supported major before redeploying |
+
+1. Open `dxpPlatformSettings.json` in the client repository and read `nodeVersion`.
+2. Build a new deployment package with a changed name or version.
+3. Deploy it through the normal DXP flow. The build pulls the latest patch of the configured major and rebuilds the container.
+
+Mechanism: the DXP build fetches the newest patch of the major you configured **only when it builds a new container image**, so an unchanged redeploy would keep the old runtime. Support gave no timing recommendation beyond "as soon as feasible".
+
 ## Related
 
 - [[debugging-dxp|Debugging in Optimizely DXP]]
 - [[dotnet-compatibility|.NET / CMS 13 compatibility]]
+
+## Sources
+
+- [Madhu Anbalagan — Optimizely DXP Alert: Are You Affected by the October 2026 Node.js Security Vulnerabilities?](https://madhuanbalagan.com/?p=5125) *(2026-11-02)*
