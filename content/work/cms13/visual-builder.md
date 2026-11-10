@@ -260,7 +260,39 @@ Reach for this when the binding renders correctly but a specific property still 
 
 A custom `PreviewController` (`[TemplateDescriptor(Tags = { RenderingTags.Preview, RenderingTags.Edit })] IRenderTemplate<BlockData>`) renders the block in isolation through its own layout. Missing header and footer there is **correct** — the same block may appear on pages with different chrome — but editors report it as a fault. Worth saying up front.
 
+## Open Data-Only Content in All Properties View by Default
+
+CMS 13 opens every item in Visual Builder, which is useless for site settings, lookup data or value-holder blocks: editors get an empty preview and switch to **All Properties** by hand each time. Bind a `UIDescriptor` to a marker interface once:
+
+```csharp
+public interface INonVisualContent { }
+
+[UIDescriptorRegistration]
+public class NonVisualContentUIDescriptor : UIDescriptor<INonVisualContent>
+{
+    public NonVisualContentUIDescriptor()
+    {
+        DefaultView = CmsViewNames.AllPropertiesView;
+        AddDisabledView(CmsViewNames.OnPageEditView);
+        AddDisabledView("visualbuilderview");
+    }
+}
+```
+
+Then add `INonVisualContent` to any page or block class. No content migration; rendering, routing and Graph indexing are unaffected.
+
+- **Sticky view** is on by default, so the CMS reopens whatever view the editor used last. Set `EnableStickyView = false` to force All Properties every time, and keep that flag consistent across types.
+- `"visualbuilderview"` is a string literal; use a `CmsViewNames` constant if your 13.x version has one.
+- Don't apply it to experiences: they are edited only in Visual Builder.
+
+*Per Adnan Zameer, 2026-11-10; code not run here.*
+
+## Headless Rendering Without Next.js
+
+Visual Builder can also be rendered by Astro on CMS 13 PaaS. See [[astro-visual-builder|Visual Builder with Astro (no Next.js)]].
+
 ## Sources
 
+- [Adnan Zameer — Default to All Properties View for Non-Visual Content in Optimizely CMS 13](https://www.adnanzameer.com/2026/11/non-visual-content-all-properties-view-optimizely-cms-13.html) *(2026-11-10)*
 - [Optimizely CMS 13 GA Release Notes](https://support.optimizely.com/hc/en-us/articles/44734633809037) *(Apr 2026)*
 - [Tomas Hensrud Gulla — Optimizely CMS Roadmap](https://www.gulla.net/en/blog/optimizely-cms-roadmap/) *(2026)*
