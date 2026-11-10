@@ -79,6 +79,7 @@ Worth reading before the next CMS 13 cutover, because none of it was visible on 
 
 ## Related Wiki Pages
 
+- [[work/clients/oxychem/visual-builder-poc|Visual Builder POC Tutorial]] — OX-260: the site ran the Visual Builder *editor* but never had the *authoring model*; the 9-file, zero-change POC that adds it, plus the lunch-and-learn demo script
 - [[work/clients/oxychem/cms13-uat|CMS 13 UAT Plan]] — the pre-cutover acceptance pass (**historical**; the epic it describes was closed as superseded)
 - [[work/cms13/upgrade-test-plan|Integration Test Plan]] — the generic plan the UAT page instantiates
 - [[work/cms13/post-upgrade-gotchas|Post-Upgrade Gotchas]] — mostly sourced from this project
