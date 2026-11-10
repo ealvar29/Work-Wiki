@@ -8,7 +8,14 @@ tags:
   - tutorial
 ---
 
-How to add the **Visual Builder authoring model** (experiences, sections, elements) to an upgraded CMS 13 MVC site **without changing any existing page or block**, using OxyChem as the worked example. Ticket: **OX-260**. Code: branch `OX-260-VB-POC`, commit `00bdf53`, 9 new files, 0 changed.
+How to add the **Visual Builder authoring model** (experiences, sections, elements) to an upgraded CMS 13 MVC site **without changing any existing page or block**, using OxyChem as the worked example. Ticket: **OX-260**. Code: branch `OX-260-VB-POC` (`00bdf53` + `ea46929`), 9 new files, 0 changed.
+
+> [!danger] Status 2026-11-10: the first Integration deploy FAILED, cause not yet known
+> Package `1.0.374` (deployment `d8bc2ca1`) never became healthy in the DXP slot. Warm-up timed out, the slot returned `503`, and every slot swap failed with *"slot did not respond to http ping"*. **Integration's live site was never affected** (it stayed on the 2026-11-06 build), but the deployment held the environment lock for about 100 minutes.
+>
+> **The slot wrote no console output at all** (normal boots write ~350 KB), which points at the container never starting rather than a code exception. That's unproven. The POC was reverted from `integration` (`OX-260-revert`) to unblock the team, and the reverted build's deploy is the experiment that tells "our code" from "DXP platform" apart.
+>
+> **Do not re-merge `OX-260-VB-POC` until it has booted locally.** The steps below are correct as code, but the claim that this is a safe additive deploy is **unverified**.
 
 > [!warning] "Visual Builder" means two different things
 > | | What it is | OxyChem before OX-260 |
@@ -193,6 +200,11 @@ namespace Oxy.Com.Logic.Controllers.Pages
 3. **Azure DevOps**: confirm the target is **`integration`**, then merge.
 4. ⏳ **Azure DevOps → Pipelines → `azure-pipelines.yml`**: about **20 minutes**.
 5. **If Integration fails to start**: open the merged PR, click **Revert**, complete the revert into `integration`, and read the startup error in the DXP logs ([[work/cms13/debugging-dxp|Debugging in DXP]]). The build does not validate content-type registration; only startup does.
+
+> [!warning] Lessons from the 2026-11-10 failed deploy
+> - **Boot it locally first.** A POC that adds content types must start against a local DB copy before it goes near a shared environment. On a slot it costs ~100 minutes of environment lock to learn what a local run shows in seconds.
+> - **A red pipeline isn't proof of a failed deploy, and a `200` isn't proof of a healthy one.** Check the slot by its own hostname (`<app>-slot.dxcloud.episerver.net`), not via `?x-ms-routing-name=slot` through Cloudflare, which can return the live build.
+> - **Check child-type availability.** OxyChem's page types all use `[AvailableContentTypes(Availability.Specific, ...)]`, so a new page or experience type is invisible in **New Page** until it opts in with `IncludeOn` (fixed in `ea46929`).
 
 ## Step 7: try it in the editor
 
