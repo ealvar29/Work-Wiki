@@ -8,10 +8,13 @@ tags:
   - tutorial
 ---
 
-How to add the **Visual Builder authoring model** (experiences, sections, elements) to an upgraded CMS 13 MVC site **without changing any existing page or block**, using OxyChem as the worked example. Ticket: **OX-260**. Code: branch `OX-260-VB-POC` (`00bdf53` → `ea46929` → `eed781a`), **6 new files, 120 lines, 0 existing files changed**, **2 new content types** (`LandingExperience`, `C31NoticeElement`).
+How to add the **Visual Builder authoring model** (experiences, sections, elements) to an upgraded CMS 13 MVC site **without changing any existing content type**, using OxyChem as the worked example. Ticket: **OX-260**. Code: branch `OX-260-VB-POC` (`00bdf53` → `ea46929` → `eed781a` → `e8fdf7d`), **6 new files + 3 small edits to existing files, 157 lines**, **2 new content types** (`LandingExperience`, `C31NoticeElement`), plus **1 section type created in the admin UI** (`Blank Section`).
 
-> [!success] Status 2026-11-12: boots locally, not yet redeployed to Integration
-> `eed781a` was verified locally against a Production copy: *"boots to Application started, `/` and `/search/` 200, `C31NoticeElement` registered in `tblContentType`."* The branch is pushed (`origin/OX-260-VB-POC`) but is **not** on `integration` or `main`.
+> [!success] Status 2026-11-12: works end to end locally; PR to Integration next
+> `e8fdf7d` verified locally against a Production copy: `https://localhost:5000/experience-test/` returns `200` with the **A7 header, two C31 Notice elements and the A3 footer**; the Visual Builder preview pane renders. The branch is pushed (`origin/OX-260-VB-POC`); it is **not** on `integration` (reverted 2026-11-10, see below) or `main`.
+
+> [!info] The first version was "0 existing files changed". That turned out to be wrong.
+> Getting from "compiles" to "renders" took **3 edits to existing files**, each a no-op for normal pages. They are the most useful part of this page: see [[#Step 8: what it took to actually render]].
 
 > [!danger] History: the first Integration deploy FAILED (2026-11-10)
 > Package `1.0.374` (deployment `d8bc2ca1`) never became healthy in the DXP slot. Warm-up timed out, the slot returned `503`, and every slot swap failed with *"slot did not respond to http ping"*. **Integration's live site was never affected** (it stayed on the 2026-11-06 build), but the deployment held the environment lock for about 100 minutes. The POC was reverted from `integration` (`OX-260-revert`).
@@ -31,11 +34,24 @@ On a classic page, a developer writes a `.cshtml` that says *"hero here, then a 
 | Level | What it is | Who defines it | OxyChem POC |
 |---|---|---|---|
 | **Experience** | A page whose body is a Visual Builder layout. A content type deriving from `ExperienceData` (which derives from `PageData`, so it has a URL, versions and publishing like any page) | Developer in C#, **or** an admin in the UI | `LandingExperience` |
-| **Section** | A horizontal band of the page. Holds rows | Built-in; custom ones via `SectionData` + `SectionEnabledKey` | Built-in only |
+| **Section** | A horizontal band of the page. Holds rows | **No built-in type.** An admin creates one in the UI (content type of kind *Section*); 🟡 or in code via `SectionData` + `SectionEnabledKey` | `Blank Section` (admin UI) |
 | **Row → Column** | The grid inside a section. The editor adds rows and splits them into columns | Built-in, no code | — |
 | **Element** | The actual content in a column: a block type flagged `CompositionBehaviors = ElementEnabledKey` | Developer in C# | `C31NoticeElement` |
-| **Style** (display template) | A named set of design options (for example "dark background") an editor can apply to a section, row or element | Admin in the UI; **stored in the database** | Not created yet |
-| **Blueprint** | A saved layout used as a starting point for a new experience | Editor in the UI; **stored in the database** | Not created yet |
+| **Style** (display template) | A named set of design options (for example "dark background") an editor can apply to a section, row or element | Admin in the UI; **stored in the database**. 🟠 Does nothing visible until the view **reads** the chosen setting and emits a CSS class | Not created yet |
+| **Blueprint** | A saved layout (a whole page or one section) used as a starting point | Editor in the UI; **stored in the database** | Being tested |
+
+### Who does what, in order
+
+| Step | Who | What happens |
+|---|---|---|
+| 1 | **Developer** (once, deployed) | Element types, the experience controller and layout; optionally experience types in code |
+| 2 | **Admin** (UI, no deploy) | Section types (`Blank Section`), more experience types, styles |
+| 3 | **Editor** | Creates an experience page; builds sections → rows → columns → elements |
+| 4 | **Editor** | Saves the layout (or one section) as a **blueprint** |
+| 5 | **Editor** | Creates new pages **from** a blueprint and edits them |
+
+> [!warning] A blueprint is a starting copy, not a master template
+> 🟡 Creating a page from a blueprint **copies** its layout and content (the API creates blueprints via `CopyContentOptions.CopyAsBlueprint`). Changing the blueprint later does **not** update pages already made from it. **Consistency comes from the approved elements and styles, not from the blueprint.** Clients often hear "blueprint" as "change once, update everywhere"; correct that early.
 
 ### 3. Elements are just blocks with a flag
 
@@ -118,7 +134,7 @@ Nothing to install. *Verified 2026-11-10 against the package XML docs in `G:\nug
 | 🔴 **Elements can't carry a `PropertyList<T>` property** | Found by booting locally, 2026-11-10 (`eed781a`) | **This one crashes the whole site at startup**, not just the element. `ModelSyncInitialization` throws *"The property 'ArticleMediaItems' is not allowed when content type has ElementEnabled"* and the host never starts. Rules out `C8StatsBlock` (`Stats`), `C14ArticleMediaBlock` (`ArticleMediaItems`) and `C24ContactBannerBlock` (`Column*ContactLinks`). Before twinning, check inherited properties against `Logic/Models/Properties/*PropertyDefinition.cs` |
 | Forms and Language Manager are not supported in Visual Builder | Official CMS 13 FAQ | Pages with forms stay classic |
 | Shared blocks as elements | Official CMS 13 FAQ **contradicts itself** | Test on Integration; it decides how much existing content can be reused |
-| One block type in two editing modes | [[work/cms13/visual-builder\|Visual Builder]] | **Never element-enable a live block type.** Create a twin that inherits from it |
+| One block type in two editing modes | [[work/cms13/visual-builder\|Visual Builder]] | **In the POC, never element-enable a live block type.** Create a twin that inherits from it. (For a real rollout, see [[#Making more blocks into elements]]) |
 | Experiences are not `BasePage` | C# single inheritance | They can't use `_Layout` (`@model PageViewModel<BasePage>`, `where T : BasePage`), so they get their own layout |
 
 ## Step 1: branch from `integration`, not `main`
@@ -189,7 +205,7 @@ namespace Oxy.Com.Logic.Models.Blocks.Elements
 
 **Why this reuses the existing views:** OxyChem's blocks render through `AsyncBlockComponent<T>`, for example `C31NoticeBlockController : AsyncBlockComponent<C31NoticeBlock>`. `View(viewModel)` finds its Razor file by the **component's** name, not the model's.
 
-🟡 *Not yet proven at runtime:* that Optimizely's template resolver picks the **base** block's component for the twin. If an element renders blank, add a one-line component per twin.
+🔴 **Proven at runtime: it does NOT, by default.** Template resolution matches the **exact** model type, so `C31NoticeElement` rendered as an empty `<div>`. The base block's controller needs `[TemplateDescriptor(Inherited = true)]` (see [[#Step 8: what it took to actually render]]). **Every twin needs this on its base block's controller.**
 
 | Option considered | Verdict |
 |---|---|
@@ -202,16 +218,30 @@ namespace Oxy.Com.Logic.Models.Blocks.Elements
 `Logic/Controllers/Pages/ExperienceController.cs`
 
 ```csharp
+using EPiServer;
+using EPiServer.Framework.DataAnnotations;
 using EPiServer.VisualBuilder;
 using EPiServer.Web.Mvc;
 using Microsoft.AspNetCore.Mvc;
+using Oxy.Com.Logic.Models.Pages.Base;
 
 namespace Oxy.Com.Logic.Controllers.Pages
 {
+	[TemplateDescriptor(Inherited = true)]                       // ← without it LandingExperience has NO template → 404
 	public class ExperienceController : PageController<ExperienceData>
 	{
+		private readonly IContentLoader _contentLoader;
+
+		public ExperienceController(IContentLoader contentLoader)
+		{
+			_contentLoader = contentLoader;
+		}
+
 		public ActionResult Index(ExperienceData currentPage)
 		{
+			// header/footer need a BasePage; the experience isn't one, so hand them its parent
+			ViewData["ContextPage"] = _contentLoader.TryGet(currentPage.ParentLink, out BasePage parent) ? parent : null;
+
 			return View("~/Views/Pages/Experience.cshtml", currentPage);
 		}
 	}
@@ -244,7 +274,7 @@ namespace Oxy.Com.Logic.Controllers.Pages
 
 - `@Html.RequiredClientResources("Header")` / `("Footer")`, which are how the editor's scripts get onto the page
 - `/styles/main.css` and `/bundle.main.js`
-- `HeaderComponent` and `FooterComponent`, invoked with no arguments. **Both already accept no page** (`Invoke(BasePage contextPage = null)`)
+- `HeaderComponent` and `FooterComponent`, invoked **with the parent page**: `Component.InvokeAsync<HeaderComponent>(new { contextPage })`, where `contextPage = ViewData["ContextPage"] as BasePage`. Invoked with no page they fall back to the **routed** page, which is the experience, not a `BasePage`, so they render **nothing**. Same pattern as `_PreviewLayout.cshtml` (OX-134)
 
 🟠 **Left out on purpose:** analytics, consent and `MetaDataComponent` (which resolves its page from the route and expects a `BasePage`), and the layout adds `noindex`. Fine for Integration; required before any production use.
 
@@ -273,8 +303,9 @@ namespace Oxy.Com.Logic.Controllers.Pages
 
 ## Step 7: try it in the editor
 
-Works the same locally (`https://localhost:5000/ui/cms`) or on Integration (`https://int.oxychem.com/ui/cms`, once deployed).
+Works the same locally (`https://localhost:5000/ui/cms`) or on Integration (`https://int.oxychem.com/ui/cms`, once deployed). **Content and UI-created types live in each environment's database**, so steps 0 onward are repeated per environment.
 
+0. **CMS admin → Content Types → Create**: add a type named **Blank Section**, kind **Section**. Without any section type, **Add section** says *"No blueprints matched your filters"*, which reads like a blueprint problem but isn't.
 1. **CMS editor → page tree**: right-click any OxyChem page (for example the start page) → **New Page**.
 2. **New Page dialog**: choose **Landing Experience (VB POC)**, name it, and create it.
 3. **Visual Builder**: add a **section**.
@@ -285,15 +316,58 @@ Works the same locally (`https://localhost:5000/ui/cms`) or on Integration (`htt
 8. **Visual Builder**: save the layout as a **blueprint**, then create a second Landing Experience from that blueprint.
 9. 🟠 **Styles**: they need a display template created in admin first. Skip this live unless you've made one beforehand.
 
-Record the answers in OX-260:
+Results so far (local, 2026-11-12):
 
 | Question | Result |
 |---|---|
-| Does each element render with its live block's look? | |
-| Do the header and footer render? | |
-| Is there a built-in section type, or is a `SectionData` type needed? | |
-| Can a **shared** element be dropped into a column? | |
-| Can styles and blueprints be created with no code? | |
+| Does each element render with its live block's look? | ✅ After `Inherited = true` on `C31NoticeBlockController` and the view fix (Step 8) |
+| Do the header and footer render? | ✅ After the `contextPage` and A7 header fixes (Step 8) |
+| Is there a built-in section type, or is a `SectionData` type needed? | ❌ No built-in. Created **Blank Section** in admin, no code |
+| Does the Visual Builder preview pane work with MVC rendering? | ✅ Once the experience has a template. *"Preview is not configured"* meant the URL 404'd |
+| Can a **shared** element be dropped into a column? | Not tested |
+| Can styles and blueprints be created with no code? | 🟡 Blueprints: being tested. Styles: can be created, but need view code to have any effect |
+
+## Step 8: what it took to actually render
+
+The code in Steps 2–4 **compiled and booted**, but the page was blank. Four separate fixes, each the same underlying lesson.
+
+| # | Symptom | Cause | Fix | File |
+|---|---|---|---|---|
+| 1 | Experience URL `404`; VB says *"Preview is not configured"* | Template resolution matches the **exact** type. The controller was for `ExperienceData`; the page is a `LandingExperience` | `[TemplateDescriptor(Inherited = true)]` | `ExperienceController.cs` |
+| 2 | Elements render as empty `<div data-epi-block-id>` | Same rule: the controller is for `C31NoticeBlock`; the element is `C31NoticeElement` | `[TemplateDescriptor(Inherited = true)]` | `C31NoticeBlockController.cs` |
+| 3 | No header, no footer | Both look up "the current page" from the route, get the experience, which is **not a `BasePage`**, and render nothing | Pass the parent page in as `contextPage` | `ExperienceController.cs`, `_ExperienceLayout.cshtml` |
+| 4 | Footer back, header still missing | The header's **A7 block** looks the page up from the route *again*, reads `JumpLinkPageTitle` (a `BasePage`-only property) → `NullReferenceException`, **swallowed** by the guarded content-area renderer (OX-80) | `_pageRouteHelper.Page as BasePage ?? start page` | `A7HeaderBlockController.cs` |
+| 5 | In edit mode, notice colours missing and the markup garbled | `@Html.PropertyFor` inside `style="..."` writes an edit-wrapper `<div>` **into the attribute** | Use `@Model.BackgroundColor` in attributes | `C31NoticeBlock/Default.cshtml` |
+
+**Why fix 1 is safe:** `Inherited = true` lets a template also serve subclasses. No other type derives from `ExperienceData` or `C31NoticeBlock` in this codebase, so nothing else changes which template it gets. `PreviewController` already uses the same attribute.
+
+**Why fixes 4 and 5 are safe for the live site:** on every normal page the routed page *is* a `BasePage`, so fix 4 never engages; and in view mode `PropertyFor` on a string outputs just the encoded value, so fix 5 produces byte-identical HTML for visitors.
+
+```diff
+  private PageData GetCurrentPage()
+  {
+-     return _pageRouteHelper.Page ?? _contentLoader.Get<PageData>(ContentReference.StartPage);
++     return _pageRouteHelper.Page as BasePage ?? _contentLoader.Get<PageData>(ContentReference.StartPage);
+  }
+```
+
+> [!danger] The real cost of adopting Visual Builder: "the current page is always a `BasePage`"
+> **Concept: implicit ambient context.** OxyChem's components find "the page I'm on" by asking the route, and every one of them assumes the answer is a `BasePage`. An experience breaks that assumption **in every such component at once**, and the failures are silent (empty output, swallowed exceptions), not errors. Found so far: `HeaderComponent`, `FooterComponent`, `A7HeaderBlockController`, `CssClassModFinder` (the body gets the wrong site class, `calcium`), `MetaDataComponent` (left out of the layout). **Not yet checked:** `A1HeaderBlock`, `A6HeaderBlock` (other sites' headers), `E1GlobalSearchController`, and any block reading the current page. Before production use: `grep -rn "_pageRouteHelper" Logic` and audit every hit.
+
+> [!tip] Concept: attribute context vs element context
+> Any helper that emits markup (`PropertyFor`, `Html.Raw`, partials) is only safe **between** tags. Inside an attribute, use the raw value. 🟠 This C31 bug predates the POC (`52b9524`, initial import) and also garbles classic on-page editing of C31 on `main`; worth its own ticket. Find others with `grep -rn 'style=".*PropertyFor' Views`.
+
+## Making more blocks into elements
+
+42 OxyChem block types pass the **structural** test (no `ContentArea`, no `PropertyList<T>` anywhere in the hierarchy). That is a ceiling, not a count: **only C31 is an element today.** Per block:
+
+1. **Model**: a twin class `XxxElement : XxxBlock` with a fresh GUID and `CompositionBehaviors = new[] { CompositionBehavior.ElementEnabledKey }`.
+2. **Controller**: `[TemplateDescriptor(Inherited = true)]` on the base block's controller.
+3. **View**: no `PropertyFor` inside attributes.
+4. **Controller logic**: no route-based "current page" lookups that assume a `BasePage`.
+5. **Test**: restart, then add, edit, preview and publish it in Visual Builder.
+
+Also skip blocks that make no sense as page content (headers, search, settings-style blocks). 🟡 For a real rollout, **enabling `ElementEnabled` on the original block** (instead of twins) may be the better design: one type in both content areas and VB, no duplicate entries in the editor's list. The POC uses twins only to stay isolated; verify classic content areas still behave before choosing that route.
 
 ## Run it locally (how to demo it)
 
@@ -321,7 +395,7 @@ This is the safest way to demo: nothing shared is touched, and it's proven to bo
 | 0–3 | A classic OxyChem page in the editor | The developer fixes the layout; editors fill the slots |
 | 3–9 | Build a Landing Experience live: section, row, two columns, a C31 Notice element in each | **The editor controls the layout.** No ticket, no deploy |
 | 9–12 | Save it as a blueprint, then create a second page from it in seconds | Campaign pages at speed, on-brand by construction |
-| 12–15 | The code: 6 files, 120 lines, 0 existing files changed. Show `C31NoticeElement` (an empty class) | **Low adoption cost.** Existing blocks become elements by inheritance; one controller covers every future experience type |
+| 12–15 | The code: 6 new files, 3 small edits, 157 lines. Show `C31NoticeElement` (an empty class), then the Step 8 table | **Low cost to start; the real cost is the "current page is a `BasePage`" audit**, not new blocks |
 
 > [!tip] Before you present
 > - Boot locally **at least 15 minutes early**, sign in once, and build one throwaway experience, so a first-load delay or an expired login doesn't happen in front of the room.
@@ -342,7 +416,8 @@ This is the safest way to demo: nothing shared is touched, and it's proven to bo
 
 ## Sources
 
-- Repo evidence: `Azure-OxyChem-Repo`, branch `OX-260-VB-POC`, commits `00bdf53`, `ea46929`, `eed781a`, checked 2026-11-12
+- Repo evidence: `Azure-OxyChem-Repo`, branch `OX-260-VB-POC`, commits `00bdf53`, `ea46929`, `eed781a`, `e8fdf7d`, checked 2026-11-12
+- Runtime verification: `curl https://localhost:5000/experience-test/` → `200` with A7 header, 2 C31 notices, A3 footer, 2026-11-12
 - Local boot verification: `eed781a` commit message, 2026-11-10
 - Package XML docs: `EPiServer.xml`, `EPiServer.Cms.AspNetCore.TagHelpers.xml`, `EPiServer.Cms.UI.Admin.xml` (all 13.4.0), read 2026-11-10
 - [Optimizely CMS 13 FAQ](https://docs.optimizely.com/cms-13/docs/faqs-for-cms-13), GA snapshot 2026-03-31
