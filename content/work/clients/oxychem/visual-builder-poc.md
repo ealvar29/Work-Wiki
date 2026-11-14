@@ -8,10 +8,12 @@ tags:
   - tutorial
 ---
 
-How to add the **Visual Builder authoring model** (experiences, sections, elements) to an upgraded CMS 13 MVC site **without changing any existing content type**, using OxyChem as the worked example. Ticket: **OX-260**. Code: branch `OX-260-VB-POC` (`00bdf53` → `ea46929` → `eed781a` → `e8fdf7d`), **6 new files + 3 small edits to existing files, 157 lines**, **2 new content types** (`LandingExperience`, `C31NoticeElement`), plus **1 section type created in the admin UI** (`Blank Section`).
+How to add the **Visual Builder authoring model** (experiences, sections, elements) to an upgraded CMS 13 MVC site **without changing any existing content type**, using OxyChem as the worked example. Ticket: **OX-260**. Code: branch `OX-260-VB-POC` (`00bdf53` → `ea46929` → `eed781a` → `e8fdf7d` → `5228664` → `44fe449`). It adds **25 new content types**: `LandingExperience` plus **24 elements**. It also adds **3 styles seeded in code** and **1 section type created in the admin UI** (`Blank Section`).
 
-> [!success] Status 2026-11-12: works end to end locally; PR to Integration next
-> `e8fdf7d` verified locally against a Production copy: `https://localhost:5000/experience-test/` returns `200` with the **A7 header, two C31 Notice elements and the A3 footer**; the Visual Builder preview pane renders. The branch is pushed (`origin/OX-260-VB-POC`); it is **not** on `integration` (reverted 2026-11-10, see below) or `main`.
+> [!success] Status 2026-11-13: on Integration with styles and 24 elements
+> - `e8fdf7d` (render fixes) is on `integration` via PR 241 (11-12) and was demoed at the show and tell on 11-13.
+> - `5228664` (styles + layout CSS) and `44fe449` (23 more elements) are pushed and boot-verified locally against a Production copy: all 24 element types are registered and `/experience-test/` returns `200`. They reach Integration through a PR from `OX-260-VB-POC` into `integration`.
+> - The POC must **never** reach `main`.
 
 > [!info] The first version was "0 existing files changed". That turned out to be wrong.
 > Getting from "compiles" to "renders" took **3 edits to existing files**, each a no-op for normal pages. They are the most useful part of this page: see [[#Step 8: what it took to actually render]].
@@ -37,7 +39,7 @@ On a classic page, a developer writes a `.cshtml` that says *"hero here, then a 
 | **Section** | A horizontal band of the page. Holds rows | **No built-in type.** An admin creates one in the UI (content type of kind *Section*); 🟡 or in code via `SectionData` + `SectionEnabledKey` | `Blank Section` (admin UI) |
 | **Row → Column** | The grid inside a section. The editor adds rows and splits them into columns | Built-in, no code | — |
 | **Element** | The actual content in a column: a block type flagged `CompositionBehaviors = ElementEnabledKey` | Developer in C# | `C31NoticeElement` |
-| **Style** (display template) | A named set of design options (for example "dark background") an editor can apply to a section, row or element | Admin in the UI; **stored in the database**. 🟠 Does nothing visible until the view **reads** the chosen setting and emits a CSS class | Not created yet |
+| **Style** (display template) | A named set of design options (for example "dark background") an editor can apply to a section, row or element | Stored in the **database**. Can be created in the admin UI or seeded in code. 🟠 Does nothing visible until the view maps each choice to a CSS class | `oxyband`, `oxyrow`, `oxycolumn`, seeded at boot (see [[#Step 9: styles and layout CSS]]) |
 | **Blueprint** | A saved layout (a whole page or one section) used as a starting point | Editor in the UI; **stored in the database** | Being tested |
 
 ### Who does what, in order
@@ -119,7 +121,7 @@ Nothing to install. *Verified 2026-11-10 against the package XML docs in `G:\nug
 | `CompositionBehavior.ElementEnabledKey` / `SectionEnabledKey` | `EPiServer.DataAbstraction`, **string constants** | 🟢 Compiles in `[ContentType(CompositionBehaviors = ...)]`. The `ElementEnabled` *object* can't, because attribute arguments must be constants |
 | `<epi-outline experience="...">` | `EPiServer.Web.Mvc.TagHelpers.OutlineTagHelper.Experience` | 🟢 XML docs; Razor views compile with tag-helper types checked |
 | `AddCmsTagHelpers()` | `EPiServer.DependencyInjection.ServiceCollectionExtensions` | 🟢 XML docs. **Not needed on OxyChem**: `Views/_ViewImports.cshtml` already registers the tag helpers (OX-84) |
-| Display templates (styles) | `IDisplayTemplateRepository` | 🟢 XML docs: **stored in the database**, so created in the UI, not in C# |
+| Display templates (styles) | `IDisplayTemplateRepository` | 🟢 **Stored in the database**, but `Save()` works from an `IInitializableModule`. Seeding at boot is proven (`5228664`) |
 | Blueprints | `IBlueprintRepository` | 🟢 XML docs: **stored in the database**, UI-only |
 | Graph | Not required | Official CMS 13 FAQ: Visual Builder "works with server-side MVC rendering without requiring Graph" |
 
@@ -130,6 +132,7 @@ Nothing to install. *Verified 2026-11-10 against the package XML docs in `G:\nug
 
 | Constraint | Source | Effect on OxyChem |
 |---|---|---|
+| 🔴 **Elements are leaf nodes.** Inherited `ContentArea`/`PropertyList<T>` properties **cannot be excluded** (`[Ignore]` etc. is not supported) | Optimizely support, 2026-11-13 | Blocks with nested content need a **separate element type**, with the nesting moved into sections/rows/columns and each list item made its own element |
 | Elements inside columns can't contain a `ContentArea` | Official CMS 13 FAQ | **Check the whole class hierarchy, not just the block's own file.** `B1HeroBlock` has none in its own file, but its base `HeroImageBlockBase` has 2, so it is **not** an element candidate |
 | 🔴 **Elements can't carry a `PropertyList<T>` property** | Found by booting locally, 2026-11-10 (`eed781a`) | **This one crashes the whole site at startup**, not just the element. `ModelSyncInitialization` throws *"The property 'ArticleMediaItems' is not allowed when content type has ElementEnabled"* and the host never starts. Rules out `C8StatsBlock` (`Stats`), `C14ArticleMediaBlock` (`ArticleMediaItems`) and `C24ContactBannerBlock` (`Column*ContactLinks`). Before twinning, check inherited properties against `Logic/Models/Properties/*PropertyDefinition.cs` |
 | Forms and Language Manager are not supported in Visual Builder | Official CMS 13 FAQ | Pages with forms stay classic |
@@ -314,7 +317,7 @@ Works the same locally (`https://localhost:5000/ui/cms`) or on Integration (`htt
 6. **Visual Builder**: drop a second C31 Notice into the other column, so the two-column layout is visible.
 7. **Visual Builder**: preview, then **publish**. Open the page's URL to see `ExperienceController` render it with the real header and footer.
 8. **Visual Builder**: save the layout as a **blueprint**, then create a second Landing Experience from that blueprint.
-9. 🟠 **Styles**: they need a display template created in admin first. Skip this live unless you've made one beforehand.
+9. **Visual Builder**: select a section → **Style → OxyChem band** → pick a background. Select a column → **OxyChem column → Width**. The styles exist in every environment the code is deployed to.
 
 Results so far (local, 2026-11-12):
 
@@ -325,7 +328,8 @@ Results so far (local, 2026-11-12):
 | Is there a built-in section type, or is a `SectionData` type needed? | ❌ No built-in. Created **Blank Section** in admin, no code |
 | Does the Visual Builder preview pane work with MVC rendering? | ✅ Once the experience has a template. *"Preview is not configured"* meant the URL 404'd |
 | Can a **shared** element be dropped into a column? | Not tested |
-| Can styles and blueprints be created with no code? | 🟡 Blueprints: being tested. Styles: can be created, but need view code to have any effect |
+| Can styles and blueprints be created with no code? | 🟡 Blueprints: being tested. Styles: can be, but need view code to have any effect. Now seeded in code with CSS mappings (Step 9) |
+| Do two columns in one row sit side by side? | ✅ After the layout CSS (Step 9). Before it they stacked, because the site CSS had no rules for these classes |
 
 ## Step 8: what it took to actually render
 
@@ -357,9 +361,52 @@ The code in Steps 2–4 **compiled and booted**, but the page was blank. Four se
 > [!tip] Concept: attribute context vs element context
 > Any helper that emits markup (`PropertyFor`, `Html.Raw`, partials) is only safe **between** tags. Inside an attribute, use the raw value. 🟠 This C31 bug predates the POC (`52b9524`, initial import) and also garbles classic on-page editing of C31 on `main`; worth its own ticket. Find others with `grep -rn 'style=".*PropertyFor' Views`.
 
+## Step 9: styles and layout CSS
+
+**Concept: Visual Builder outputs structure, not layout.** `<epi-row>` and `<epi-column>` are plain `<div>`s. Until the site's CSS gives `experience__row` a flex layout, two columns stack vertically.
+
+| Piece | Where | What |
+|---|---|---|
+| Styles | `Logic/Initialization/VisualBuilderStylesInitialization.cs` | Create-only `IInitializableModule`. Seeds `oxyband` (section: `background`, `spacing`), `oxyrow` (row: `gap`, `align`) and `oxycolumn` (column: `width`). All are `IsDefault = true`. It skips keys that already exist, so admin edits survive. It logs `[VisualBuilderStyles] Created style …` |
+| Choice → class | `Views/Pages/Experience.cshtml` | `<epi-styles name="oxyband"><epi-style name="background"><epi-style-map value="dark" class="experience__section--bg-dark" />` inside each `epi-grid`/`epi-row`/`epi-column` |
+| Layout CSS | Inline `<style>` in `Experience.cshtml` | Flex rows with a `--exp-gap` variable; column widths as `calc(w·100% − (1−w)·gap)`; full width under 767px; `:empty` rows hidden; `.container` neutralised inside columns |
+
+```cshtml
+<epi-column class="experience__column">
+    <epi-styles name="oxycolumn">                       @* ← key must match the seeded template *@
+        <epi-style name="width">
+            <epi-style-map value="auto" class="experience__column--auto" default />
+            <epi-style-map value="third" class="experience__column--third" />
+```
+
+🟠 **Gotchas:**
+- A column has **no width property**, so widths have to come from a style.
+- C31 paints its background on a `z-index: -1` span, so columns need `isolation: isolate`. Without it, the span disappears behind a coloured section.
+- The first choice of each setting matches the base CSS, so "no choice" and "default" look the same.
+- The CSS is inline for the POC (int's CSP allows `'unsafe-inline'`). For a real rollout, move it to `Frontend/app/modules/`.
+
+| Option considered for styles | Verdict |
+|---|---|
+| Create them by hand in admin per environment | ❌ Lost on every DB restore and easy to mistype; keys must match the Razor exactly |
+| **Seed in code, create-only** | 🟢 Present wherever the code is deployed; editor changes survive restarts |
+| Seed in code, overwrite every boot | ❌ Silently reverts admin edits |
+
 ## Making more blocks into elements
 
-42 OxyChem block types pass the **structural** test (no `ContentArea`, no `PropertyList<T>` anywhere in the hierarchy). That is a ceiling, not a count: **only C31 is an element today.** Per block:
+**24 block types are elements as of `44fe449`.** A reflection pass over the compiled site checked all 103 block types, inherited properties included. It replaced the earlier hand count of "42", which was wrong.
+
+| Bucket | Count | Outcome |
+|---|---|---|
+| ✅ Twinned | **24** | C31 Notice, F2 Contact, M1/M2/M3 descriptions, A4 Back Button, C41 Video, Photo Gallery, C45 Alternating Media Entry, C20 Stories Feed, C23 News Results, C46 Key Date Entry, G4 Quarterly Earnings Table, G8 Table, D6/D7/D8/D9/D10 calculators, C44 Distributor Locator, D5 Stock IFrame, D15 Stock Feed, C35 Modal, C39 Text Popup |
+| ⚫ Allowed but left out | **13** | A1 header, E1/E2 search, C18 social share (needs a `BasePage`), C13 (C41 derives from it), C22/C40 (no controller), ApplicationItem/L2/L4 (hidden from edit mode), Embed/LinkBlock/IconLinkBlock (molecules) |
+| ❌ `ContentArea` | **54** | Needs a separate, redesigned element type |
+| ❌ List property | **11** | E.g. C8, C14, C15 Accordion, C24. Each list item becomes its own element |
+
+All 23 new twins live in one file, `Logic/Models/Blocks/Elements/VisualBuilderElements.cs`. Each matching controller in `Logic/Controllers/Blocks/` got `[TemplateDescriptor(Inherited = true)]`. 🟡 Each element still needs an add/preview/publish check in VB. JS-driven ones (calculators, locator, video) may only come alive on the published page, not in the editor preview.
+
+🟠 **Only add `Inherited = true` where the block has no other subclasses.** That's why C13 was left out: `C41VideoBlock` derives from it, and C41's own template would compete.
+
+Checklist for each new element:
 
 1. **Model**: a twin class `XxxElement : XxxBlock` with a fresh GUID and `CompositionBehaviors = new[] { CompositionBehavior.ElementEnabledKey }`.
 2. **Controller**: `[TemplateDescriptor(Inherited = true)]` on the base block's controller.
@@ -400,7 +447,7 @@ This is the safest way to demo: nothing shared is touched, and it's proven to bo
 > [!tip] Before you present
 > - Boot locally **at least 15 minutes early**, sign in once, and build one throwaway experience, so a first-load delay or an expired login doesn't happen in front of the room.
 > - Have a finished experience already published, as a fallback if the live build stalls.
-> - Only **one** element type exists (C31 Notice). If someone asks why, that's the `PropertyList<T>` story below. It's a good one.
+> - **24** element types exist as of `44fe449`. If someone asks why not all 103, the answer is the "leaf nodes" rule plus the `PropertyList<T>` boot crash.
 
 ### Selling points
 
@@ -416,7 +463,9 @@ This is the safest way to demo: nothing shared is touched, and it's proven to bo
 
 ## Sources
 
-- Repo evidence: `Azure-OxyChem-Repo`, branch `OX-260-VB-POC`, commits `00bdf53`, `ea46929`, `eed781a`, `e8fdf7d`, checked 2026-11-12
+- Repo evidence: `Azure-OxyChem-Repo`, branch `OX-260-VB-POC`, commits `00bdf53`, `ea46929`, `eed781a`, `e8fdf7d`, `5228664`, `44fe449`, checked 2026-11-13
+- Optimizely support reply on excluding element properties ("elements are intended as leaf nodes"), 2026-11-13
+- Local boot of `44fe449`: 24 element types in `tblContentType`, three `[VisualBuilderStyles] Created style` lines, `/experience-test/` → `200`, 2026-11-13
 - Runtime verification: `curl https://localhost:5000/experience-test/` → `200` with A7 header, 2 C31 notices, A3 footer, 2026-11-12
 - Local boot verification: `eed781a` commit message, 2026-11-10
 - Package XML docs: `EPiServer.xml`, `EPiServer.Cms.AspNetCore.TagHelpers.xml`, `EPiServer.Cms.UI.Admin.xml` (all 13.4.0), read 2026-11-10
