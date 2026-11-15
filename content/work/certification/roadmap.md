@@ -47,6 +47,23 @@ You are shown **three real-world scenarios and pick one**. You answer in an **in
 
 🟡 **Not stated** anywhere on the certification site. The programme says PaaS covers "CMS 12 and CMS 13". The Developer blueprint leans modern: Graph, Digital Asset Management and AI content generation are listed topics, and Search & Navigation is not. Where CMS 12 and CMS 13 differ, learn both answers.
 
+## Domains: Optimizely Foundations
+
+*Verified 2026-11-15 at [the Foundations blueprint](https://certification.optimizely.com/blueprint?track=foundation&tier=foundation), read anonymously (no sign-in needed).* Twenty questions, so each domain is only 2 to 4 of them.
+
+| Domain | Weight | ≈ Questions | Topics (sample from the blueprint) | Day-job coverage | Wiki pages |
+|---|---|---|---|---|---|
+| **Platform Services and Infrastructure** | **20%** | 4 | Platform architecture, cross-product orchestration, SSO and cross-product identity, cloud hosting, auto scaling, CDN, high availability, CI/CD, environment and configuration management, role and organisation management, caching, edge delivery | 🟢 Strong (DXP, Opti ID) | [[work/cms13/deploying-to-dxp\|Deploying to DXP]], [[work/cms13/opti-id-admin-center\|Opti ID]], [[work/cms13/debugging-dxp\|Debugging DXP]] |
+| Content Management and Delivery | 15% | 3 | Content types, content areas, block composition, **Visual Builder**, multi-site, URL management, scheduled jobs, multilingual, on-page editing, GraphQL, headless, webhooks | 🟢 Strong | [[work/cms13/visual-builder\|Visual Builder]], [[work/cms13/applications-model\|Applications]], [[work/cms13/graph-sdk\|Graph SDK]], [[work/clients/oxychem/visual-builder-poc\|OxyChem VB POC]] |
+| Experimentation and Personalization | 15% | 3 | A/B and multivariate testing, feature flags, kill switches, traffic allocation, Stats Engine, server- vs client-side SDKs, visitor groups, content and product recommendations | 🟠 Visitor groups only | — |
+| Commerce and B2B Solutions | 15% | 3 | Catalog, cart, checkout, orders, pricing and promotions, inventory and warehouses, B2B purchase orders, approval workflows, punchout, multi-currency, ERP connectors | 🔴 None | — |
+| Data Platform and Analytics | 15% | 3 | Unified customer profile, identity resolution, real-time segments, event tracking, data activation, dashboards, data warehouse connectivity | 🔴 None | — |
+| Product Fundamentals | 10% | 2 | A pool of 300+ tags across every product. Treat it as "know what each product is for" | 🟡 Partial | [[work/cms13/what-is-cms13\|What is CMS 13]] |
+| AI, Automation and Agent Orchestration | 10% | 2 | Opal chat, agents and agent builder, AI content generation, image suggestions, brand guidelines, governance and guardrails, RAG, workflow automation | 🟡 Opal basics | [[work/cms13/optimizely-opal\|Opal]], [[work/cms13/ai-assistant\|AI Assistant]] |
+
+> [!important] Only 15% of Foundations is CMS
+> About **55%** (Experimentation, Commerce, Data Platform, AI) covers products we don't use day to day. That is where the Foundations week goes. The blueprint lists only topic tags, not objectives, and abbreviates long lists with "+ N more", so expect questions slightly outside the tags shown.
+
 ## Domains: CMS PaaS — Core (Developer)
 
 | Domain | Weight | ≈ Questions | Topics (from the blueprint) | Wiki pages | Gaps to write |
@@ -58,6 +75,34 @@ You are shown **three real-world scenarios and pick one**. You answer in an **in
 | **Cloud Infrastructure and Deployment** | 10% | 3 | Deployment, CI/CD, environments, configuration, CDN, caching, high availability, logging, monitoring, troubleshooting, database management | [[work/cms13/deploying-to-dxp\|Deploying to DXP]], [[work/cms13/debugging-dxp\|Debugging DXP]] | CDN and caching |
 
 **Nearly half the exam is Developer Experience and Extensibility.** That's where the hours go.
+
+*Domains and weights re-verified 2026-11-15 against [the Developer blueprint](https://certification.optimizely.com/blueprint?track=cms-paas&tier=core&role=developer): all five unchanged. The page still does not say which CMS version the exam targets.*
+
+## Practice codebase: the Foundation reference site
+
+**Foundation** is Optimizely's open-source demo site ([episerver/Foundation](https://github.com/episerver/Foundation)). It runs CMS, Commerce, personalization and experimentation together locally. That makes it the cheapest way to *see* the Foundations domains we never touch at work, and a second clean codebase to read for the Developer exam.
+
+> [!warning] Use the `upgrade/cms13` branch, not `main`
+> | Branch | Stack | Last commit |
+> |---|---|---|
+> | `main` | CMS 12.31, Commerce 14, .NET 6 | 2024-10-02 |
+> | **`upgrade/cms13`** | **CMS 13.5.1, Commerce 15.5.0, .NET 10, Graph, Opal tools** | 2026-11-06 |
+>
+> *Verified 2026-11-15.* Re-check:
+> ```bash
+> gh api "repos/episerver/foundation/commits?sha=upgrade/cms13&per_page=1" --jq '.[0].commit.committer.date'
+> ```
+
+```bash
+git clone -b upgrade/cms13 https://github.com/episerver/Foundation.git
+```
+
+Run it with the repo's `setup.cmd` (Windows) or `setup.sh`, then `dotnet run`. Check the branch README first, because the CMS 13 setup may differ from `main`'s.
+
+| Exam | Use Foundation for |
+|---|---|
+| Foundations | Clicking through Commerce (catalog, cart, checkout, promotions), visitor groups and personalization, the products the exam covers but our clients don't run |
+| Developer | Reading content events, initialization modules and Graph wiring in someone else's code, then writing them from memory |
 
 ## Daily routine
 
@@ -81,7 +126,9 @@ You are shown **three real-world scenarios and pick one**. You answer in an **in
 
 ### Week 2 (11-16 to 11-22): Foundations
 
-- [ ] Study the non-CMS products at a high level: Experimentation, Commerce, Data Platform, Opal
+- [ ] Clone Foundation (`upgrade/cms13`) and get it running
+- [ ] Study the non-CMS domains, about 55% of the exam: Experimentation and Personalization, Commerce and B2B, Data Platform and Analytics, AI and Opal
+- [ ] Platform Services and Infrastructure (20%, the biggest single domain): mostly what we already do on DXP. Review, don't relearn
 - [ ] Practice exam at 80% or above
 - [ ] 🎯 **Sit Foundations** at the end of the week
 
@@ -128,7 +175,8 @@ Thanksgiving week is light, which is why this domain gets two weeks.
 
 ## Sources
 
-- [Optimizely certification blueprints](https://certification.optimizely.com/blueprint): CMS PaaS — Core (Developer) and Optimizely Foundations, checked 2026-11-10
+- [Optimizely certification blueprints](https://certification.optimizely.com/blueprint): CMS PaaS — Core (Developer) and Optimizely Foundations, checked 2026-11-10; Foundations domains and Developer weights re-checked 2026-11-15
+- [episerver/Foundation](https://github.com/episerver/Foundation): reference site; branches checked 2026-11-15
 - [Optimizely certification FAQ](https://certification.optimizely.com/faq), checked 2026-11-10
 - [Matt Dunn: Optimizely certifications in 2026, the new programme explained](https://mattcdunn.com/blog/optimizely-certifications/), 2026-10-29
 - [Calimat: my journey to Optimizely certification](https://world.optimizely.com/blogs/calimat/dates/2025/1/my-journey-to-optimizely-certification-study-tips-ai-tools-and-exam-strategies/), 2025-01 (old programme; study-method tips still apply)
