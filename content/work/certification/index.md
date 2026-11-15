@@ -12,7 +12,7 @@ Study material for the **CMS PaaS — Core (Developer)** certification: the self
 ## Pages
 
 - [[roadmap|Study Roadmap]]: both exams, the official domains and weights for each, the Foundation reference site as a practice codebase, the week-by-week plan, go/no-go rule and progress log
-- Foundations study guide *(in progress)*: the non-CMS domains, about 55% of that exam
+- [[foundations-study-guide|Foundations Study Guide]]: the non-CMS domains (Experimentation, Commerce, Data Platform, AI), about 55% of that exam, with an exam-traps table per domain
 - Developer study guide by domain *(coming next)*
 - Anki flashcard deck *(coming next)*
 - Practice question bank *(coming next)*
