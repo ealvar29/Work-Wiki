@@ -277,6 +277,34 @@ curl -s "https://nuget.optimizely.com/feed/packages.svc/FindPackagesById()?id='M
   | grep -oE '<d:Version[^>]*>[^<]+' | tail -5
 ```
 
+## Geo Search: `GeoPoint` Does Not Come From the CMS Sync
+
+Graph's query side supports a `GeoPoint` field (filter and order by distance), but **the CMS synchronisation can only produce a fixed set of field types and `GeoPoint` is not one of them**. Sending `lat`/`lon` through `IncludeField` indexes a nested object with two floats, so the distance operators do not work on it. A custom `PropertyData`, computed fields, indexing attributes or a `"lat,lon"` string all end up as an existing type. *Per K Khan, 2026-11-11, who reports hitting this on a real project.*
+
+**Fix: a separate external content source** with your own schema, keyed back to the CMS item by content ID.
+
+| Step | Detail |
+|---|---|
+| Define the type | `PUT /api/content/v3/types?id={source}`, Basic auth with Graph AppKey and Secret. Source ID is at most **4 characters**, `a-z0-9` only |
+| Send documents | `POST /api/content/v2/data?id={source}` as NDJSON: an action line (`{"index":{"_id":"42_en","language_routing":"en"}}`), then the document |
+| Geo field name | With typed field names it is `Location$$GeoPoint` holding `{ "lat": .., "lon": .. }` |
+| Delete | `{"delete":{"_id":"42_en","language_routing":"en"}}` to the same endpoint |
+| Join back | Store `ContentId$$Int` and join on it in your own code |
+
+```graphql
+query NearestOffices {
+  OfficeLocation(
+    where: { Location: { distance: { origin: { lat: 51.5, lon: -0.12 }, radius: 10, unit: MI } } }
+    orderBy: { Location: { origin: { lat: 51.5, lon: -0.12 } } }
+  ) { items { ContentId OfficeName Location { lat lon } } }
+}
+```
+
+> [!warning] A full type sync wipes the source
+> A full `PUT` of the schema **replaces the source's schema and deletes all its data**. Always use your own source ID, never the CMS one, and check your Graph account allows another source (over the limit the call fails). Radius defaults to 1000 and unit to metres.
+
+The Graph Source SDK has no `GeoPoint` converter (Boolean, DateTime, Int, Float, String and nested types only), so the author uses a small `HttpClient` wrapper. Keep it in step with content events plus a rebuild job. *Per the post, 2026-11-11; code not run here, and the metadata fields (`Status$$String`, `__typename`, `_rbac`, `ContentType$$String`, `Language`) are copied from the post, not verified.*
+
 ## Editor Search Changes in CMS 13.5.1
 
 The official 13.5.1 release note lists one fix (CMS-57937, smooth rebuild failures for languages that fall back but have no content). Assembly comparison by Tomas Hensrud Gulla found more, almost all in `Optimizely.Graph.Cms` and concerning **editor search backed by Graph**:
@@ -313,6 +341,7 @@ The official 13.5.1 release note lists one fix (CMS-57937, smooth rebuild failur
 
 - [Jake Minard — Introducing the Optimizely CMS 13 Graph SDK](https://world.optimizely.com/blogs/jake-minard/dates/2026/3/introducing-optimizely-cms-13-graph-sdk/) *(Mar 2026)*
 - [Mardy Abdelkareem — Making Built-in CMS Categories Queryable in Optimizely Graph (CMS 13 PaaS)](https://world.optimizely.com/blogs/mardy-abdelkareem/dates/2026/11/making-built-in-cms-categories-queryable-in-optimizely-graph-cms-13-paas/) *(2026-11-10)*
+- [K Khan — Why your GeoPoint never reaches Optimizely Graph, and how to fix it](https://world.optimizely.com/blogs/K-Khan-/Dates/2026/11/why-your-geopoint-never-reaches-optimizely-graph-and-how-to-fix-it/) *(2026-11-11)*
 - [Johan Kronberg — A note on using async computed fields with Optimizely Graph](https://krompaco.nu/2026/11/a-note-on-using-async-computed-fields-with-optimizely-graph/) *(2026-11-09)*
 - [Johan Kronberg — Log your Optimizely Graph queries](https://krompaco.nu/2026/11/log-optimizely-graph-queries/) *(2026-11-06)*
 - [Tomas Hensrud Gulla — What else changed in Optimizely CMS 13.5.1](https://www.gulla.net/en/blog/what-else-changed-in-optimizely-cms-13.5.1/) *(2026-11-01)*

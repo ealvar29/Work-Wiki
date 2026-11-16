@@ -287,12 +287,27 @@ Then add `INonVisualContent` to any page or block class. No content migration; r
 
 *Per Adnan Zameer, 2026-11-10; code not run here.*
 
+## Modelling Constraints Found Migrating a Whole Site
+
+*Per Allan Thraen (umage.ai), 2026-11-11, on CMS 13.5.1; not re-tested here.* Related REST gotchas: [[cms-rest-api|CMS REST API v1]].
+
+> [!warning] Decide on Visual Builder **before** you model anything
+> **Elements can only use property types Visual Builder supports, and those do not include lists, content areas or nested blocks.** A row of three stats is three elements, not one block with a list. The author's agents first built a classic model (pages with content areas and blocks) and rebuilt it as 6 Experience types, 1 Section type with 23 layout variants as display templates, and 21 flat Element types. Deciding late cost a full model rebuild.
+
+| Gotcha | Detail |
+|---|---|
+| Existing page type → Experience | **Refused at start-up** while the type exists. Remove the type, then re-add it with the **same GUID** |
+| Display template choice keys | Need **at least two characters**: `"2"` fails, `"two"` works |
+| Changing a Style does not refresh the preview | The style saves but the event the preview listens for is never raised. The author's fix was ~40 lines of middleware found by decompiling 13.5.1; it needs re-checking on every upgrade. Not filed with Optimizely |
+| Settings dropdowns ignore automated clicks | Driving the admin UI from Playwright: dispatch the mouse events from page script |
+
 ## Headless Rendering Without Next.js
 
 Visual Builder can also be rendered by Astro on CMS 13 PaaS. See [[astro-visual-builder|Visual Builder with Astro (no Next.js)]].
 
 ## Sources
 
+- [Allan Thraen — Migrating a Full Website to Optimizely CMS 13 with Visual Builder in Four Hours](https://umage.ai/insights/optimizely-cms-13-visual-builder-migration-in-four-hours/) *(2026-11-11)*
 - [Adnan Zameer — Default to All Properties View for Non-Visual Content in Optimizely CMS 13](https://www.adnanzameer.com/2026/11/non-visual-content-all-properties-view-optimizely-cms-13.html) *(2026-11-10)*
 - [Optimizely CMS 13 GA Release Notes](https://support.optimizely.com/hc/en-us/articles/44734633809037) *(Apr 2026)*
 - [Tomas Hensrud Gulla — Optimizely CMS Roadmap](https://www.gulla.net/en/blog/optimizely-cms-roadmap/) *(2026)*

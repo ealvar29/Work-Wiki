@@ -33,7 +33,7 @@ Two things follow:
 |---|---|---|
 | .NET 8 | Runs (LTS) | Original CMS 13 target. No longer our recommendation — we have no project on it and no field evidence behind it. |
 | **.NET 10** | **Recommended** | What both our .NET 10 projects run. CMS 13's own baseline. |
-| .NET 11 | Verify before use | See below. |
+| .NET 11 | **Edit mode breaks on 13.6.0** | Public site runs; CMS UI needs a workaround. See below. |
 
 ### .NET 11
 
@@ -44,6 +44,37 @@ Stuart Greig confirmed (Apr 2026) that CMS 13 boots on .NET 11 Preview with a si
 ```
 
 **GA was expected November 2026 — that is now.** This page has not been re-verified since; **check the current GA and Optimizely support status before citing it**, and do not move a production project on the strength of this paragraph alone.
+
+> ⚠️ **UPDATE 2026-11-16 — .NET 11 is GA, but CMS edit mode breaks on it.** *Per Tomas Hensrud Gulla's post (2026-11-11), tested against Optimizely **13.6.0** packages.* The public site starts and renders; **CMS edit mode returns 500** on `/Optimizely/shell/Stores/...` and never finishes loading. The "single `.csproj` change, no code changes" result above was for a Preview, and **is not true for GA** with 13.6.0.
+>
+> | | |
+> |---|---|
+> | Error | `System.MissingMethodException` for `ModelMetadataIdentity.ForProperty(Type, string, Type)` |
+> | Cause | ASP.NET Core 11 **removed** an overload that had been obsolete for several versions. `ContentDataMetadataProvider` in `EPiServer.Cms.Shell.UI` (built for .NET 10) still calls it |
+> | Why it hides | A missing method only fails on **first call**, so startup and public pages look healthy |
+> | Safest option | **Stay on .NET 10** until Optimizely ships .NET 11 builds |
+
+**If you must go to .NET 11 now**, the post's workaround registers a subclass of the public `ContentDataMetadataProvider` that rebuilds the identity through the still-present private constructor:
+
+```csharp
+[UnsafeAccessor(UnsafeAccessorKind.Constructor)]
+private static extern ModelMetadataIdentity CreateIdentity(Type modelType, string name, Type containerType,
+    object fieldInfo, System.Reflection.ConstructorInfo constructorInfo);
+```
+
+- `CreateMetadata` and `GetMetadataForProperties` both have to be re-provided (about 300 lines copied from Optimizely, in the author's gist), because `CreateMetadata` implements an interface and the private iterator calls the original directly
+- An `IConfigurableModule` with `[ModuleDependency(typeof(EPiServer.Cms.Shell.InitializableModule))]` removes the existing registration and adds the subclass, **and repeats that in `context.ConfigurationComplete`** so registration order cannot override it
+- It depends on Optimizely internals, so a rename shows up as `MissingFieldException` / `MissingMethodException` **at runtime, not build time**. Delete it when .NET 11 packages ship and re-test edit mode after every CMS update meanwhile
+
+> [!warning] Azure App Service Linux: first deploy may not start
+> On the **Standard** platform release channel the image still carried an **11.0.0 release candidate**, and .NET will not roll forward from a release to an older pre-release (`Framework 'Microsoft.NETCore.App', version '11.0.0' ... found 11.0.0-rc.3`). Fix: set **Platform release** to **Latest** (or publish self-contained). Gulla expected it to resolve itself within days. *Per the same post, 2026-11-11.*
+
+*Re-check whether CMS packages built for .NET 11 now exist:*
+
+```bash
+curl -s "https://nuget.optimizely.com/feed/packages.svc/FindPackagesById()?id='EPiServer.CMS.UI'" \
+  | grep -oE '<d:Version[^>]*>[^<]+' | tail -5
+```
 
 Performance characteristics that would matter to CMS if it does land: JIT/PGO (faster cold start, which matters for DI-heavy CMS init), lower async state-machine allocation, allocation-free `System.Text.Json`, `Span<T>` improvements.
 
@@ -74,4 +105,5 @@ On DXP, `EPiServer.CloudPlatform.Cms` 13.x constrains the dependency graph *(VHB
 ## Sources
 
 - [Stuart Greig — Running Optimizely CMS 13 on .NET 11 Preview](https://stuartgreig.dev/blog/running-optimizely-cms-13-on-net-11-preview/) *(Apr 2026)*
+- [Tomas Hensrud Gulla — Upgrading Optimizely CMS 13 from .NET 10 to .NET 11](https://www.gulla.net/en/blog/upgrading-optimizely-cms-13-from-dotnet10-to-dotnet11/) *(2026-11-11)*
 - Our own csproj files — `OxyChem` repo (`dev.azure.com/OxyChem/EPIServer/_git/OxyChem`, branch `main`) and `Episerver` repo (`dev.azure.com/oxycorp/oog-dwp-dwo-episerver`, branch `master`)

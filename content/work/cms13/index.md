@@ -87,6 +87,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 - [[opti-id-admin-center|Opti ID & the Admin Center]] — adding projects/instances, granting access, roles, and the Super-Admin invitation deadlock; note the PaaS Portal isn't on Opti ID yet
 - [[debugging-dxp|Debugging in DXP]]
 - [[optimizely-opal|Optimizely Opal — Install & Troubleshooting]] — the in-editor AI assistant: 2-package install, config, Admin Center connection, the CSP `wss://` gotcha, Graph-indexing dependency, and a field-tested troubleshooting table
+- [[mark-agent-platform|Mark (Agent Platform) — Opticon 2026 & Mark Desktop]] — Opal → Mark rename and name map, what NY (Sept 1) and London (Oct 13) announced, and Mark Desktop: install, per-user Opti ID enablement, local file/shell tools, and the auto-granting Workspaces caveat
 - [[ai-assistant|AI Assistant v4]]
 - [[geo-analytics|GEO Analytics]] — AI crawler traffic dashboard; track which AI agents index your site and whether crawls become referrals (PaaS only)
 

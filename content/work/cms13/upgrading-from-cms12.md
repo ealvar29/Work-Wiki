@@ -98,7 +98,35 @@ Run the build. Address any remaining compilation errors. The API consolidations 
 - **Native Graph integration** — more mature content graph support for headless scenarios
 - **Better AI tooling compatibility** — CMS 13 APIs are better suited to AI-assisted development
 
+## Staying on CMS 12 for Now: Minimum Versions for .NET 10
+
+.NET 8 and .NET 9 went out of Microsoft support on **2026-11-10**, so a CMS 12 site still on .NET 8 no longer gets framework security patches. Matt Dunn's three-path comparison (CMS 12 on .NET 10, CMS 13, or CMS SaaS) lands on: **move to .NET 10 on CMS 12 now, and run the CMS 13 / SaaS decision as a separate funded discovery.** *Per Dunn's post (checked by him 2026-11-07, published 2026-11-10); versions below are from Optimizely release notes he cites and are not independently verified here.*
+
+| Package | Minimum for .NET 10 |
+|---|---|
+| `EPiServer.CMS.Core` | **12.24.0** |
+| `EPiServer.CMS.UI` | **12.34.5** |
+| `EPiServer.Commerce` (Commerce Connect 14) | **14.46.0** |
+| `EPiServer.Find.Commerce` (if still on Search & Navigation) | **12.3.0** |
+
+Older CMS 12 versions run on .NET 10 but show NuGet vulnerability warnings until updated. .NET 10 is supported until **2028-11-14**; .NET 11 is a standard-term release.
+
+Points from the post that bear on the CMS 13 decision:
+
+- **Commerce sites have a second upgrade**: Commerce Connect 14 does not work with CMS 13, so Commerce Connect 15 is required. That alone can justify doing .NET 10 on CMS 12 first.
+- **Search & Navigation is the usual hidden cost.** Do **not** move search to Graph while still on CMS 12: the Graph schema differs on CMS 13, so queries get rewritten again. Inventory queries and features now; build the Graph versions against the CMS 13 schema later. See [[search-to-graph|Search & Navigation to Graph]].
+- Reported figures: upgrade to CMS 13 takes **2 to 6 months on average**; the database migration **cannot be reversed**; S&N customers moving to CMS 13 typically get a **six-month overlap**. These are vendor or author claims, not our measurements.
+
+*Re-check the package minimums:*
+
+```bash
+curl -s "https://nuget.optimizely.com/feed/packages.svc/FindPackagesById()?id='EPiServer.CMS.Core'" \
+  | grep -oE '<d:Version[^>]*>[^<]+' | tail -5
+```
+
 ## Sources
+
+- [Matt Dunn — CMS 12 after 10 November: three paths and how to choose](https://mattcdunn.com/blog/cms-12-after-10-november/) *(2026-11-10)*
 
 - [Stuart Greig — CMS 13: The Evolution We've Earned](https://stuartgreig.dev/blog/optimizely-cms-13-upgrade) *(Apr 2026)*
 - [[removing-unused-properties|Removing Unused Properties in CMS 13]]
