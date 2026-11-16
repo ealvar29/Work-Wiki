@@ -8,6 +8,9 @@ tags:
   - csp
 ---
 
+> [!note] Opal is now "Mark" (Optimizely Agent Platform)
+> *Updated 2026-11-16.* The product was renamed in autumn 2026. Package and SDK names still say **Opal**, so everything on this page still applies. For the new names, the Opticon 2026 announcements and the **Mark Desktop** app, see [[mark-agent-platform|Mark (Agent Platform) — Opticon 2026 & Mark Desktop]].
+
 How to install **Optimizely Opal** (the in-editor AI assistant) on a CMS 13 PaaS/DXP site, plus the non-obvious blockers that will eat a day if you don't know them. Written from the OxyChem Integration rollout, July 2026 — every gotcha below was hit for real.
 
 > [!tip] The one thing to remember
