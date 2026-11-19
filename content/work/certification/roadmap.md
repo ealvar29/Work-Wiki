@@ -130,7 +130,7 @@ Run it with the repo's `setup.cmd` (Windows) or `setup.sh`, then `dotnet run`. C
 - [ ] Study the non-CMS domains, about 55% of the exam: Experimentation and Personalization, Commerce and B2B, Data Platform and Analytics, AI and Opal
 - [ ] Platform Services and Infrastructure (20%, the biggest single domain): mostly what we already do on DXP. Review, don't relearn
 - [ ] Practice exam at 80% or above
-- [ ] 🎯 **Sit Foundations** at the end of the week
+- [x] 🎯 **Sit Foundations** at the end of the week — ✅ passed, 95% (reported 2026-11-17)
 
 ### Weeks 3 and 4 (11-23 to 12-06): Developer Experience and Extensibility (45%)
 
@@ -170,7 +170,8 @@ Thanksgiving week is light, which is why this domain gets two weeks.
 
 | Date | Exam | Mode | Score | Weakest domain | Notes |
 |---|---|---|---|---|---|
-| | Foundations | Practice | | | Baseline |
+| | Foundations | Practice | | | Baseline (skipped) |
+| ≤2026-11-17 | Foundations | **Real exam** | **95% ✅ Passed** | | Prerequisite for PaaS Developer Core met |
 | | PaaS Developer Core | Practice | | | Baseline |
 
 ## Sources
