@@ -206,6 +206,8 @@ Wiring it up is only half the job. **`EPiServer.Forms.Samples` has no CMS 13 bui
 
 **CMS 13 is not compatible with Commerce 14.** Wait for Commerce 15.
 
+> ✅ **RESOLVED — Commerce 15 ships.** *Verified against the Optimizely feed 2026-11-19:* `EPiServer.Commerce` 15.5.0 and `Optimizely.Graph.Commerce` 15.5.0. The advice to wait for it is **no longer true**. Upgrade CMS and Commerce in one project. Sizing and catalog-only notes: [[upgrade-estimating|Estimating a CMS 13 Upgrade]].
+
 ## 16. Third-Party Known Issues
 
 GA-era guidance listed Optimizely Forms, Geta packages, and anything built on Search & Navigation as incompatible. As of **June 2026 (verified on the OxyChem CMS 13.0.2 upgrade)** the picture has moved:
@@ -220,7 +222,11 @@ GA-era guidance listed Optimizely Forms, Geta packages, and anything built on Se
 | `Geta.Optimizely.ContentTypeIcons` | ✅ 4.1.0 |
 | `Addon.Episerver.EnvironmentSynchronizer` | ✅ 2.0.1 |
 
-*Rows for NotFoundHandler, Sitemaps, ContentTypeIcons and EnvironmentSynchronizer updated from VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata).*
+| `EPiServer.Labs.LanguageManager` | ✅ 6.0.0 |
+| `PowerSlice` | ❌ No CMS 13 version; latest is 5.2.0, which depends on Find (per the Christie assessment). Remove |
+| `EPiServer.Telemetry.UI` | ❌ No CMS 13 version; latest is 2.2.1. Remove |
+
+*Rows for NotFoundHandler, Sitemaps, ContentTypeIcons and EnvironmentSynchronizer updated from VHB spike VHBK-499, 2026-11-05 (spike/cms13 commit 13ed447, CMS 13.5.1 / Forms 6.0.2 package metadata). Rows for LanguageManager, PowerSlice and Telemetry UI verified against the Optimizely feed 2026-11-19. Newer majors also on the feed that date: Sitemaps 5.0.0, NotFoundHandler 8.0.0, Forms 6.1.0, AdvancedReviews 2.1.0.*
 | Anything built against Search & Navigation (Find) | ❌ Find is fully removed — no compatibility path |
 
 Always check each package's release notes, but don't assume the GA-era "incompatible" list still holds.

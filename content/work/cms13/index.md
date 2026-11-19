@@ -55,6 +55,7 @@ Optimizely CMS 13 is the latest major version of the Optimizely Content Manageme
 
 - [[upgrading-from-cms12|Upgrading from CMS 12]]
 - [[upgrade-checklist|Upgrade Checklist]] — consolidated step-by-step
+- [[upgrade-estimating|Estimating a CMS 13 Upgrade]] — relative sizing across Cambro, OxyChem and Christie, the grep signals that drive hours, a workstream template, and the hidden costs that compile cleanly
 - [[upgrade-test-plan|Integration Test Plan]] — the "is it done?" acceptance gate: smoke gate + 12 test areas with Jaxon/client owner split, severity classes, and a sign-off record to run on Integration before promoting
 - [[breaking-changes|Breaking Changes]] — full catalog
 - [[ivalidate-breaking-change|Breaking Change: IValidate\<T\>]] — validators no longer auto-discovered, must register via `AddCmsValidator<T>()`
