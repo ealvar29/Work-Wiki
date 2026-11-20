@@ -94,7 +94,7 @@ Windows and macOS update themselves and ask you to restart. Linux updates throug
 
 - **MCP or custom tools on the desktop.** None are mentioned. The only desktop-specific tools are the eight above. Remote MCP connectors and custom tools are platform features that work in both the browser and the desktop app.
 - **CMS integration.** Mark Desktop has no CMS-specific feature. CMS work goes through the CMS 13 PaaS tools.
-- Licensing, pricing and version history for Mark Desktop specifically. On the platform side, there are 200 free credits per instance per month until the end of 2026. [S8]
+- Licensing, pricing and version history for Mark Desktop specifically. On the platform side, each Mark instance gets **200 complimentary credits per month from 2025-10-01 to 2026-12-31**, revocable at any time and not tied to a CMS version. *Confirmed in Optimizely's own docs 2026-11-20* [S10]; first reported by [S8]. Detail and what to ask a client's Customer Success Manager: [[optimizely-opal#complimentary-credits-end-2026-12-31|Opal → complimentary credits]].
 
 ## How this affects CMS 13 work
 
@@ -124,4 +124,5 @@ Windows and macOS update themselves and ask you to restart. Linux updates throug
 - [S7] [Mando — Opticon 2026 and the OMVP Summit](https://www.mandogroup.com/news-insights/opticon-2026-and-the-optimizely-omvp-summit-agentic-futures-upgrade-paths-and-growth) *(2026-10-16)*
 - [S8] [Scott Reed — Optimizely Agent Platform: October 2026 State of Play](https://world.optimizely.com/blogs/scott-reed/dates/2026/10/optimizely-agent-platform---october-2025-state-of-play) *(2026-10-05)*
 - [S9] [Optimizely Developers](https://www.optimizely.com/developers) *("Mark goes desktop" teaser, Nov 2026)*
+- [S10] [Optimizely Mark credits — Optimizely docs](https://docs.optimizely.com/agent-platform/docs/agent-platform-credits) *(read 2026-11-20; the old support article 36304551863181 "Optimizely Opal credits" redirects here)*
 - [Scott Reed — Opticon New York & the strategy on upgrading to CMS 13](https://world.optimizely.com/blogs/scott-reed/dates/2026/9/opticon-new-york--the-strategy-on-upgrading-to-cms-13-/) *(2026-09-07)*

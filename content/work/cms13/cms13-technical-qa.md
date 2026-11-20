@@ -96,7 +96,7 @@ No. Opti ID is only for CMS editors and business users. You can still use your o
 ## Opal & AI
 
 **Is Opal included with CMS 13?**
-No. Opal is a standalone product requiring a separate subscription. Pricing is usage-based via Opal Credits across multiple tiers.
+No. Opal is a standalone product requiring a separate subscription. Pricing is usage-based via Opal Credits across multiple tiers. Until **2026-12-31**, each Mark (Opal) instance also gets 200 complimentary credits a month, not tied to CMS 13 (*verified 2026-11-20*, see [[optimizely-opal#complimentary-credits-end-2026-12-31|Opal → complimentary credits]]).
 
 **Does Opal work on-premises?**
 No. Opal requires Opti ID and is cloud-only.

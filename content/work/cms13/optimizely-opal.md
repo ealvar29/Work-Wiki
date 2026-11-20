@@ -28,6 +28,19 @@ Opal is Optimizely's AI agent platform. In CMS 13 it shows up in **three** place
 
 Opal is a **separate, usage-based subscription** (Opal Credits), gated behind **Opti ID**, cloud-only, and **works on PaaS/DXP**. It is *not* included with CMS 13.
 
+### Complimentary credits end 2026-12-31
+
+*Verified 2026-11-20 against [Optimizely Mark credits](https://docs.optimizely.com/agent-platform/docs/agent-platform-credits)* (the old "Optimizely Opal credits" support article now redirects there). Word for word: *"Effective 10/1/2025 and ending on 12/31/2026, each instance of Mark is able to utilize up to 200 credits monthly on a complimentary basis"*, and *"Optimizely reserves the right to modify or discontinue complimentary access at any time."*
+
+| Question | Answer |
+|---|---|
+| Tied to upgrading to CMS 13? | **No.** It's per Mark instance, not per CMS version |
+| Do unused credits carry over? | **Not stated.** "Up to 200 credits monthly" reads as use-it-or-lose-it |
+| How do you get an instance or credits? | *"Mark credits are allocated. Contact your account administrator or Optimizely account representative"*, in practice the Customer Success Manager |
+| What happens after 2026-12-31? | **Not stated.** Ask the Customer Success Manager |
+
+**So it is not something to "grab before it expires" for a client upgrading in 2027**: it can't be banked, and CMS integration needs CMS 13. Ask what plan applies *after* 2026-12-31. A December trial of standalone Mark in the browser is the one cheap use of the remaining allowance.
+
 ## Prerequisites
 
 1. **CMS 13 on Optimizely DXP** (PaaS). SaaS has its own Opal path.

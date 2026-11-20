@@ -103,9 +103,21 @@ The assessment already covers two gotchas that the wiki also documents: Razor Pa
 > [!note] Project migration: the reason is the schema, not the rebuild time
 > *Adopted in revision 2 of the assessment.* Revision 1 said DXP project migration may be needed "because the Graph rebuild takes time". A full Graph synchronization measured **about 6 minutes for about 27,650 items** on all three DXP environments. The reason Optimizely recommends project migration is the **breaking Graph schema change** between CMS 12 and 13. Time Christie's sync on Integration once the catalog is indexed, then decide. See [[work/cms13/graph-vs-search-navigation|Graph vs S&N]] and [[work/cms13/search-to-graph|Search → Graph]].
 
+## Open items in revision 2
+
+Found reviewing revision 2 against the wiki, 2026-11-20:
+
+| # | Item | Status |
+|---|---|---|
+| 1 | The sign-in risk says *"the SAML library also changes package."* **It doesn't.** `Sustainsys.Saml2.AspNetCore2` 2.11.1 is current and runs on `net10.0`; the "new" package doesn't exist. The wiki's own [[work/cms13/cms12-to-cms13-cheatsheet\|cheatsheet]] was the likely source and was corrected 2026-11-20 | 🔴 Fix in the assessment |
+| 2 | The sign-in risk assumes *"CMS 13 moves editors to Opti ID"*, while the questions for Christie ask *whether* editors should move. Editors are on B2C today, so keeping them there (no AI or DAM) and federating B2C behind Opti ID are both valid, with different effort | 🟠 Pick one position |
+| 3 | The by-risk and by-workstream estimate tables share a total but don't reconcile line by line, and audiences have no workstream line | 🟠 Add a mapping note |
+| 4 | Phase 2 still says Best Bets *"do not migrate automatically"* and must be exported; the hidden-problems list correctly says they live in the database | 🟡 Wording |
+| 5 | Not yet covered: Graph has no UnifiedSearch (Resource Finder, Product Downloads Finder) and display-time filtering breaks pagination `total` | 🟡 Add to the spike |
+
 ## Open questions for Christie (from the assessment)
 
-- Does the contract include Opal / Mark AI features, or are they an add-on?
+- Does Christie have a **Mark (Agent Platform) instance**, and what credit plan applies **after the complimentary 200 credits per month end on 2026-12-31**? Ask Christie's Optimizely Customer Success Manager. The allowance isn't tied to CMS 13 and can't be banked, so there's no reason to rush it before the upgrade; a December trial of standalone Mark (translation, drafting) is the one cheap use. See [[work/cms13/optimizely-opal#complimentary-credits-end-2026-12-31|Opal → complimentary credits]]
 - Should CMS editors move to Opti ID? It's required for the AI features and the Embedded DAM, not for CMS 13 itself
 - Is AI enablement (MCP server and agents) in scope, or a follow-on?
 - Blackout periods for cutover (trade shows, launches)?
