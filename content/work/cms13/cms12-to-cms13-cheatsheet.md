@@ -147,15 +147,23 @@ SiteDefinition.Current.StartPage
 
 ## NuGet Package Renames
 
+> ❌ **CORRECTED 2026-11-20.** *Verified against the Optimizely feed and nuget.org 2026-11-20.* This table previously listed seven renames. **Four of them were wrong**: `Optimizely.Cms.UI`, `Optimizely.Cms.AspNetCore`, `Optimizely.Forms` and `Sustainsys.Saml2.AspNetCore` **do not exist on either feed**. The core CMS and Forms packages kept their `EPiServer.*` IDs on CMS 13, and the SAML library did not change package. A client assessment written from this wiki (Christie, 2026-11-20) repeated "the SAML library also changes package"; this table is the likely source.
+
 | CMS 12 Package | CMS 13 Package |
 |---|---|
-| `EPiServer.CMS.UI` | `Optimizely.Cms.UI` |
-| `EPiServer.CMS.AspNetCore` | `Optimizely.Cms.AspNetCore` |
-| `EPiServer.Find` | `Optimizely.Graph.Client` |
-| `EPiServer.Find.Cms` | `Optimizely.Graph.Cms` |
-| `EPiServer.Forms` | `Optimizely.Forms` *(CMS 13 version pending)* |
-| `EPiServer.ContentGraph.Cms` | `Optimizely.ContentGraph.Cms` |
-| `Sustainsys.Saml2.AspNetCore2` | `Sustainsys.Saml2.AspNetCore` |
+| `EPiServer.CMS.UI` | **Unchanged**: `EPiServer.CMS.UI` 13.7.0 |
+| `EPiServer.CMS.AspNetCore` | **Unchanged** (`EPiServer.Cms` / `EPiServer.CloudPlatform.Cms` 13.x on OxyChem) |
+| `EPiServer.Find` / `EPiServer.Find.Cms` | **Removed.** Replace with `Optimizely.Graph.Cms` + `Optimizely.Graph.Cms.Query` 13.x. See [[graph-sdk\|Graph SDK]] |
+| `EPiServer.Forms` | **Unchanged**: `EPiServer.Forms` 6.x |
+| `EPiServer.ContentGraph.Cms` | `Optimizely.Graph.Cms` 13.x. (`Optimizely.ContentGraph.Cms` 4.x is the CMS 12-era package) |
+| `Sustainsys.Saml2.AspNetCore2` | **Unchanged**: `Sustainsys.Saml2.AspNetCore2` 2.11.1 runs on `net10.0` (oxy.com production) |
+
+```bash
+curl -s "https://nuget.optimizely.com/feed/packages.svc/FindPackagesById()?id='Optimizely.Cms.UI'" | grep -c '<d:Version'
+curl -s "https://api.nuget.org/v3-flatcontainer/sustainsys.saml2.aspnetcore/index.json"
+```
+
+Both return nothing (`0` and `BlobNotFound`).
 
 ---
 

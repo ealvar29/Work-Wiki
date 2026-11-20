@@ -61,10 +61,16 @@ From the assessment's scan of the `master` branch, 2026-11-19:
 
 ### Christie-specific parts
 
-- Customer sign-in through **Azure B2C (SAML)** with two schemes. It stays on B2C; only CMS editors move to Opti ID
+- **Customers, partners _and editors_ all sign in through Azure B2C (Entra) over SAML**, with two schemes (sign-in and password change)
+- **18 custom audience criteria** that personalize content by the signed-in partner's organization and profile (access level, account tier, customer group, industry, country, region and more). They read B2C claims and Commerce customer data
+- A **custom product attribute manager** (a small PIM, 41 files): custom tables, CSV bulk upload, its own CMS admin screens. It feeds product specs and the search filters, through Find today
+- Custom editor roles `WebEditors`, `WebAdmins` and `Administrators`, used in 6 controllers and editor components
+- A product `IValidate<T>` validator
 - **`.com` and `.cn` share one site**, mapped to English and Simplified Chinese
-- A custom content provider
+- Two custom content providers (videos and translations)
 - The Projection Calculator React app
+
+> ✅ **CORRECTED 2026-11-20.** This page previously said *"only CMS editors move to Opti ID"*. **That stated a disputed claim as fact.** Opti ID is not established as mandatory for CMS 13 (see [[work/cms13/cms13-demo-guide|Demo Runbook]] → the 2026-11-03 correction); it is required for **Opal / AI features and the Embedded DAM**. And since editors already sign in through B2C, the choice isn't B2C *or* Opti ID: Opti ID can federate an Entra / B2C connection behind it (see [[work/cms13/opti-id-admin-center|Opti ID]]). **Whether editors move depends on whether Christie wants the AI features or DAM.**
 
 ## Active Workstreams
 
@@ -75,7 +81,9 @@ From the assessment's scan of the `master` branch, 2026-11-19:
 
 ## Risks the wiki adds to the assessment
 
-These come from OxyChem and VHB and apply to Christie specifically. Price them into the spike.
+These come from OxyChem and VHB and apply to Christie specifically.
+
+> 🟢 **Revision 2 of the assessment (2026-11-20) was written with this wiki and adopted most of this table**, each item checked against Christie's code: hostnames, `SiteDefinition.Current`, Best Bets (two search managers apply them), editor roles, the product validator, Graph settings per environment, audiences, and the project-migration reason. **Not yet in it:** UnifiedSearch, pagination `total`, and the DB-restore item.
 
 | Risk | Why it bites Christie | Read |
 |---|---|---|
@@ -93,12 +101,12 @@ These come from OxyChem and VHB and apply to Christie specifically. Price them i
 The assessment already covers two gotchas that the wiki also documents: Razor Pages registered before CMS routes (`CMS-51344`) and `PropertyList<T>` loading empty under System.Text.Json.
 
 > [!note] Project migration: the reason is the schema, not the rebuild time
-> The assessment says DXP project migration may be needed "because the Graph rebuild takes time". A full Graph synchronization measured **about 6 minutes for about 27,650 items** on all three DXP environments. The reason Optimizely recommends project migration is the **breaking Graph schema change** between CMS 12 and 13. Time Christie's sync on Integration once the catalog is indexed, then decide. See [[work/cms13/graph-vs-search-navigation|Graph vs S&N]] and [[work/cms13/search-to-graph|Search → Graph]].
+> *Adopted in revision 2 of the assessment.* Revision 1 said DXP project migration may be needed "because the Graph rebuild takes time". A full Graph synchronization measured **about 6 minutes for about 27,650 items** on all three DXP environments. The reason Optimizely recommends project migration is the **breaking Graph schema change** between CMS 12 and 13. Time Christie's sync on Integration once the catalog is indexed, then decide. See [[work/cms13/graph-vs-search-navigation|Graph vs S&N]] and [[work/cms13/search-to-graph|Search → Graph]].
 
 ## Open questions for Christie (from the assessment)
 
 - Does the contract include Opal / Mark AI features, or are they an add-on?
-- Should CMS editors move to Opti ID? It's required for the AI features
+- Should CMS editors move to Opti ID? It's required for the AI features and the Embedded DAM, not for CMS 13 itself
 - Is AI enablement (MCP server and agents) in scope, or a follow-on?
 - Blackout periods for cutover (trade shows, launches)?
 - Who owns UAT and the search baseline queries?
@@ -116,5 +124,5 @@ The assessment already covers two gotchas that the wiki also documents: Razor Pa
 
 ## Sources
 
-- Josh Apgar, *Christie Digital — Optimizely CMS 13 Upgrade Assessment*, 2026-11-19 (internal)
+- Josh Apgar, *Christie Digital — Optimizely CMS 13 Upgrade Assessment*, 2026-11-19 (internal); revision 2, 2026-11-20, written with this wiki
 - Optimizely NuGet feed, all add-on versions above re-checked 2026-11-19
